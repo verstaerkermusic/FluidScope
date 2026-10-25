@@ -1,6 +1,6 @@
 # FluidScope – Kurzanleitung
 
-**Version 0.4.6 · verstaerker · macOS Apple Silicon**
+**Version 0.4.7 · verstaerker · macOS Apple Silicon**
 
 ## 1. Loslegen
 
@@ -60,6 +60,8 @@ Mit der Maus über der 2D-Kurve werden Frequenz, dargestellter Pegel und nächst
 **3D Decay / ms** regelt den zusätzlichen visuellen Nachklang unabhängig vom 2D Release. 40 ms ist ein kurzer Startwert; 0 fügt keinen weiteren Nachklang hinzu. Bereits erfasste Spektren behalten ihre Form beim Weiterwandern.
 
 **Rear Fade / %** blendet den ältesten Teil weich aus. 25 entspricht dem letzten Viertel, 0 schaltet den Fade ab. Diese Einstellung gilt auch für 3D-Lissajous.
+
+**Wireframe** neben Trace Colours schaltet die 3D-FFT zwischen gefüllter Fläche und Liniennetz um. Der Schalter erscheint bei 3D / History und Quad; in der Vollbild-Kopfzeile ist er ebenfalls verfügbar. Wireframe lässt sich mit Clean Mode kombinieren und wird mit dem Projekt gespeichert.
 
 ## 6. 3D bedienen und groß anzeigen
 

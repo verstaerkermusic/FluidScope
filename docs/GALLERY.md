@@ -1,6 +1,6 @@
 # FluidScope – GUI-Impressionen
 
-Echte Aufnahmen von FluidScope 0.4.5 und 0.4.6 mit synthetischen Audiosignalen. Die Bilder zeigen die tatsächliche Oberfläche; sie sind keine Design-Mockups.
+Echte Aufnahmen von FluidScope 0.4.5 bis 0.4.7 mit synthetischen Audiosignalen. Die Bilder zeigen die tatsächliche Oberfläche; sie sind keine Design-Mockups.
 
 ## Vier Blicke auf denselben Klang
 
@@ -45,3 +45,9 @@ Ein räumlicher Verlauf macht sichtbar, wie sich das Spektrum entwickelt.
 ![3D-Lissajous im Clean Mode aus einer frei gedrehten Perspektive](images/xy3d-clean.png)
 
 ![Alle vier Ansichten ohne Raster, Skalen und Plot-Hinweise](images/quad-clean.png)
+
+## Wireframe (0.4.7)
+
+![3D-FFT als Liniennetz; Clean und Wireframe sind direkt im normalen Fenster bedienbar](images/history3d-wireframe.png)
+
+![Wireframe und Clean Mode gemeinsam im Vollbild](images/history3d-wireframe-clean.png)

@@ -39,6 +39,7 @@ int main(int argc,char** argv) {
         if(longHistory){set("view",3);set("history",12);}
         if(mode=="fft"){set("view",2);set("fftGain",12);}if(mode.startsWith("depth")&&mode!="depth-long"){set("view",3);set("history",2);set("fftGain",12);}if(mode.startsWith("quad"))set("view",4);
         if(mode.contains("clean")){set("clean",1);set("historyOrbitYaw",130);set("historyOrbitPitch",-110);set("xyOrbitYaw",120);set("xyOrbitPitch",110);}
+        if(mode.contains("wire"))set("fftWireframe",1);
         const bool full=argc>5 && juce::String(argv[5])=="full";
         if(argc>6){set("historyZoom",juce::String(argv[6]).getFloatValue());set("xyZoom",juce::String(argv[6]).getFloatValue());}
         struct Window : juce::DocumentWindow {
@@ -47,6 +48,14 @@ int main(int argc,char** argv) {
         } window;
         window.setUsingNativeTitleBar(true);window.setContentNonOwned(editor.get(),true);
         window.centreWithSize(1180,900);window.setAlwaysOnTop(full);window.setVisible(true);window.toFront(true);
+        if(mode=="depth-wire") {
+            auto clickClean=[&]{for(int i=0;i<editor->getNumChildComponents();++i)if(auto* b=dynamic_cast<juce::ToggleButton*>(editor->getChildComponent(i)))if(b->getButtonText()=="Clean") {
+                auto* hit=editor->getComponentAt(b->getBounds().getCentre());check(hit==b||b->isParentOf(hit),"Visible normal-window Clean toggle receives mouse hits");b->triggerClick();return;
+            }check(false,"Visible normal-window Clean toggle exists");};
+            juce::Timer::callAfterDelay(1200,clickClean);
+            juce::Timer::callAfterDelay(1500,[&,clickClean]{check(parameter("clean")->getValue()==1,"Visible normal-window Clean toggle turns on");clickClean();});
+            juce::Timer::callAfterDelay(1800,[&]{check(parameter("clean")->getValue()==0,"Visible normal-window Clean toggle turns off");});
+        }
         if(full)juce::Timer::callAfterDelay(400,[&]{editor->keyPressed(juce::KeyPress(juce::KeyPress::F11Key));});
         auto presentation=[&]()->fluid::DisplayWindow*{for(int i=0;i<juce::Desktop::getInstance().getNumComponents();++i)if(auto* w=dynamic_cast<fluid::DisplayWindow*>(juce::Desktop::getInstance().getComponent(i)))return w;return nullptr;};
         if(full) {
@@ -152,6 +161,24 @@ int main(int argc,char** argv) {
     }
     image=editor->createComponentSnapshot(editor->getLocalBounds(),true,1.f);
     juce::FileOutputStream fft(juce::File::getCurrentWorkingDirectory().getChildFile("FluidScope-preview-fft.png"));fft.setPosition(0);fft.truncate();juce::PNGImageFormat().writeImageToStream(image,fft);
+    editor->setVisible(true);
+    for(int width:{940,1180})for(int view=0;view<5;++view) {
+        editor->setSize(width,900);set("view",float(view));set("clean",0);juce::MessageManager::getInstance()->runDispatchLoopUntil(25);
+        for(const auto text:{juce::String("Clean"),juce::String("Wireframe")}) {
+            if(text=="Wireframe"&&view!=3&&view!=4)continue;
+            juce::ToggleButton* button=nullptr;
+            for(int i=0;i<editor->getNumChildComponents();++i)if(auto* b=dynamic_cast<juce::ToggleButton*>(editor->getChildComponent(i)))if(b->getButtonText()==text)button=b;
+            check(button&&button->isVisible(),"Normal editor toggle exists and is visible");
+            for(float fraction:{.15f,.5f,.85f}) {
+                const auto bounds=button->getBounds();auto* hit=editor->getComponentAt(bounds.getX()+int(bounds.getWidth()*fraction),bounds.getCentreY());
+                if(!(hit==button||button->isParentOf(hit)))std::cerr<<"Hit test: "<<text<<" view "<<view<<" width "<<width<<" fraction "<<fraction<<" hit "<<(hit?typeid(*hit).name():"null")<<std::endl;
+                check(hit==button||button->isParentOf(hit),"Normal editor toggle hit area is not covered by a label");
+            }
+            const auto id=text=="Clean"?"clean":"fftWireframe";set(id,0);button->triggerClick();juce::MessageManager::getInstance()->runDispatchLoopUntil(100);
+            check(parameter(id)->getValue()==1,"Clicking the normal editor toggle changes the actual parameter");
+            button->triggerClick();juce::MessageManager::getInstance()->runDispatchLoopUntil(100);check(parameter(id)->getValue()==0,"Normal editor toggle switches back off");
+        }
+    }
     for(int mode:{3,1}) {
         set("view",float(mode));set("xy3D",1);juce::MessageManager::getInstance()->runDispatchLoopUntil(35);
         fluid::SpectrumPanel* target=nullptr;
@@ -186,10 +213,10 @@ int main(int argc,char** argv) {
     check(changedPixels>1000,"FFT visual gain shifts the rendered spectrum");
     juce::AudioBuffer<float> gainOriginal;gainOriginal.makeCopyOf(audio);p->processBlock(audio,midi);
     for(int ch=0;ch<2;++ch)for(int i=0;i<audio.getNumSamples();++i)check(audio.getSample(ch,i)==gainOriginal.getSample(ch,i),"FFT visual gain leaves audio bit-exact");
-    set("rearFade",25);set("xy3DTime",.35f);set("historyDecay",65);set("xyZoom",1.8f);set("historyZoom",1.4f);set("clean",1);set("historyOrbitYaw",150);set("xyOrbitPitch",-120);
+    set("rearFade",25);set("xy3DTime",.35f);set("historyDecay",65);set("xyZoom",1.8f);set("historyZoom",1.4f);set("clean",1);set("historyOrbitYaw",150);set("fftWireframe",1);set("xyOrbitPitch",-120);
     set("style",1);set("lineWidth",2.2f);set("bandLow",55);set("bandHigh",140);set("listen",1);
-    p->getStateInformation(state);set("style",0);set("listen",0);set("fftGain",0);set("xyFollow",0);set("xyZoom",1);set("historyZoom",1);set("clean",0);set("historyOrbitYaw",0);set("xyOrbitPitch",0);p->setStateInformation(state.getData(),int(state.getSize()));
-    check(parameter("style")->convertFrom0to1(parameter("style")->getValue())==1 && parameter("listen")->getValue()==1,"appearance and audition state restore");check(std::abs(parameter("rearFade")->convertFrom0to1(parameter("rearFade")->getValue())-25)<.01f,"rear fade persists");check(std::abs(parameter("xy3DTime")->convertFrom0to1(parameter("xy3DTime")->getValue())-.35f)<.001f,"3D XY time persists");check(std::abs(parameter("historyDecay")->convertFrom0to1(parameter("historyDecay")->getValue())-65)<.01f,"3D visual decay persists");check(std::abs(parameter("fftGain")->convertFrom0to1(parameter("fftGain")->getValue())-24)<.01f,"FFT visual gain persists");check(parameter("xyFollow")->getValue()==1,"XY envelope-follow toggle persists");check(std::abs(parameter("xyZoom")->convertFrom0to1(parameter("xyZoom")->getValue())-1.8f)<.001f && std::abs(parameter("historyZoom")->convertFrom0to1(parameter("historyZoom")->getValue())-1.4f)<.001f,"Independent 3D zoom levels persist");check(parameter("clean")->getValue()==1 && std::abs(parameter("historyOrbitYaw")->convertFrom0to1(parameter("historyOrbitYaw")->getValue())-150)<.001f && std::abs(parameter("xyOrbitPitch")->convertFrom0to1(parameter("xyOrbitPitch")->getValue())+120)<.001f,"Clean mode and full orbit settings persist");set("clean",0);set("listen",0);set("fftGain",0);
+    p->getStateInformation(state);set("style",0);set("listen",0);set("fftGain",0);set("xyFollow",0);set("xyZoom",1);set("historyZoom",1);set("clean",0);set("historyOrbitYaw",0);set("xyOrbitPitch",0);set("fftWireframe",0);p->setStateInformation(state.getData(),int(state.getSize()));
+    check(parameter("style")->convertFrom0to1(parameter("style")->getValue())==1 && parameter("listen")->getValue()==1,"appearance and audition state restore");check(std::abs(parameter("rearFade")->convertFrom0to1(parameter("rearFade")->getValue())-25)<.01f,"rear fade persists");check(std::abs(parameter("xy3DTime")->convertFrom0to1(parameter("xy3DTime")->getValue())-.35f)<.001f,"3D XY time persists");check(std::abs(parameter("historyDecay")->convertFrom0to1(parameter("historyDecay")->getValue())-65)<.01f,"3D visual decay persists");check(std::abs(parameter("fftGain")->convertFrom0to1(parameter("fftGain")->getValue())-24)<.01f,"FFT visual gain persists");check(parameter("xyFollow")->getValue()==1,"XY envelope-follow toggle persists");check(std::abs(parameter("xyZoom")->convertFrom0to1(parameter("xyZoom")->getValue())-1.8f)<.001f && std::abs(parameter("historyZoom")->convertFrom0to1(parameter("historyZoom")->getValue())-1.4f)<.001f,"Independent 3D zoom levels persist");check(parameter("clean")->getValue()==1 && std::abs(parameter("historyOrbitYaw")->convertFrom0to1(parameter("historyOrbitYaw")->getValue())-150)<.001f && std::abs(parameter("xyOrbitPitch")->convertFrom0to1(parameter("xyOrbitPitch")->getValue())+120)<.001f,"Clean mode and full orbit settings persist");check(parameter("fftWireframe")->getValue()==1,"Wireframe state persists");set("fftWireframe",0);set("clean",0);set("listen",0);set("fftGain",0);
     set("bandLow",800);set("bandHigh",1200);set("listen",1);
     std::array<double,3> sine{},cosine{};constexpr double frequencies[]={100,1000,8000};int measured=0;
     for(int block=0;block<160;++block) {

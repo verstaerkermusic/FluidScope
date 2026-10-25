@@ -8,10 +8,10 @@ class Presentation : public juce::Component {
     SignalPanel wave,xy;
     SpectrumPanel spectrum,depth,xyDepth;
     juce::ComboBox view;
-    juce::ToggleButton clean{"Clean"},listen{"Listen band"},xy3D{"3D XY"};
+    juce::ToggleButton clean{"Clean"},wireframe{"Wireframe"},listen{"Listen band"},xy3D{"3D XY"};
     juce::TextButton close{"Return / Esc"};
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> va;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> ba,xa,cleanAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> ba,xa,cleanAttachment,wireframeAttachment;
     int lastMode=-1,lastStyle=-1;float lastXY3D=-1;
     unsigned nativePaints=0;
     juce::VBlankAttachment displayClock;
@@ -20,19 +20,20 @@ class Presentation : public juce::Component {
 public:
     std::function<void()> exit,frame;
     Presentation(Capture& c,SpectrumAnalyser& a,juce::AudioProcessorValueTreeState& s):state(s),wave(c,s,false),xy(c,s,true),spectrum(a,s),depth(a,s),xyDepth(a,s,&c) {
-        for(auto* child:std::initializer_list<juce::Component*>{&wave,&xy,&spectrum,&depth,&xyDepth,&view,&clean,&listen,&xy3D,&close})addAndMakeVisible(child);
+        for(auto* child:std::initializer_list<juce::Component*>{&wave,&xy,&spectrum,&depth,&xyDepth,&view,&clean,&wireframe,&listen,&xy3D,&close})addAndMakeVisible(child);
         view.addItemList({"Waveform","XY / Lissajous","FFT / Spectrum","3D / History","Quad"},1);
         va=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(state,"view",view);
         ba=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,"listen",listen);
         xa=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,"xy3D",xy3D);
+        wireframeAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,"fftWireframe",wireframe);
         cleanAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,"clean",clean);
         close.onClick=[this]{if(exit)exit();};setOpaque(true);setWantsKeyboardFocus(true);
         displayClock=juce::VBlankAttachment(this,[this]{if(frame)frame();});
     }
     void resized()override {
-        clean.setBounds(590,9,90,28);
+        clean.setBounds(590,9,90,28);wireframe.setBounds(690,9,120,28);
         view.setBounds(230,9,220,28);xy3D.setBounds(470,9,120,28);listen.setBounds(getWidth()-340,9,170,28);close.setBounds(getWidth()-160,9,145,28);
-        int mode=int(value("view"));auto b=getLocalBounds().reduced(16);b.removeFromTop(36);b.removeFromBottom(24);
+        int mode=int(value("view"));wireframe.setVisible(mode==3||mode==4);auto b=getLocalBounds().reduced(16);b.removeFromTop(36);b.removeFromBottom(24);
         const bool time=value("xy3D")>.5f;xy3D.setVisible(mode==1||mode==4);wave.setVisible(mode==0||mode==4);xy.setVisible((mode==1||mode==4)&&!time);xyDepth.setVisible((mode==1||mode==4)&&time);xyDepth.set3D((mode==1||mode==4)&&time);spectrum.setVisible(mode==2||mode==4);depth.setVisible(mode==3||mode==4);
         spectrum.set3D(false);depth.set3D(mode==3||mode==4);
         wave.expand=mode==4?std::function<void()>([this]{setView(0);}):std::function<void()>{};xy.expand=mode==4?std::function<void()>([this]{setView(1);}):std::function<void()>{};
@@ -42,7 +43,7 @@ public:
         else {wave.setBounds(b);xy.setBounds(b);xyDepth.setBounds(b);spectrum.setBounds(b);depth.setBounds(b);}
     }
     void tick() {
-        int style=int(value("style"));if(style!=lastStyle){lastStyle=style;auto a=appearance(style,int(value("colourL")),int(value("colourR")));view.setColour(juce::ComboBox::backgroundColourId,a.panel);view.setColour(juce::ComboBox::textColourId,a.text);clean.setColour(juce::ToggleButton::textColourId,a.text);clean.setColour(juce::ToggleButton::tickColourId,a.left);xy3D.setColour(juce::ToggleButton::textColourId,a.text);xy3D.setColour(juce::ToggleButton::tickColourId,a.left);listen.setColour(juce::ToggleButton::textColourId,a.text);listen.setColour(juce::ToggleButton::tickColourId,a.right);close.setColour(juce::TextButton::buttonColourId,a.grid);close.setColour(juce::TextButton::textColourOffId,a.text);repaint();}
+        int style=int(value("style"));if(style!=lastStyle){lastStyle=style;auto a=appearance(style,int(value("colourL")),int(value("colourR")));view.setColour(juce::ComboBox::backgroundColourId,a.panel);view.setColour(juce::ComboBox::textColourId,a.text);wireframe.setColour(juce::ToggleButton::textColourId,a.text);wireframe.setColour(juce::ToggleButton::tickColourId,a.left);clean.setColour(juce::ToggleButton::textColourId,a.text);clean.setColour(juce::ToggleButton::tickColourId,a.left);xy3D.setColour(juce::ToggleButton::textColourId,a.text);xy3D.setColour(juce::ToggleButton::tickColourId,a.left);listen.setColour(juce::ToggleButton::textColourId,a.text);listen.setColour(juce::ToggleButton::tickColourId,a.right);close.setColour(juce::TextButton::buttonColourId,a.grid);close.setColour(juce::TextButton::textColourOffId,a.text);repaint();}
         int mode=int(value("view"));if(mode!=lastMode||lastXY3D!=value("xy3D")){lastMode=mode;lastXY3D=value("xy3D");resized();repaint();}
         if(mode==0||mode==4)wave.refresh();if(mode==1||mode==4){if(value("xy3D")>.5f)xyDepth.tick();else xy.refresh();}if(mode==2||mode==4)spectrum.tick();if(mode==3||mode==4)depth.tick();
     }

@@ -68,6 +68,7 @@ public:
         number("xyOrbitYaw","XY orbit yaw",-180.f,180.f,0.f);
         number("xyOrbitPitch","XY orbit pitch",-180.f,180.f,0.f);
         p.add(std::make_unique<juce::AudioParameterBool>("clean","Clean display",false));
+        p.add(std::make_unique<juce::AudioParameterBool>("fftWireframe","3D FFT wireframe",false));
         return p;
     }
     FluidProcessor() : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true).withOutput("Output",juce::AudioChannelSet::stereo(),true)), state(*this,nullptr,"FluidScope",parameters()) {}
@@ -120,9 +121,9 @@ class FluidEditor : public juce::AudioProcessorEditor, private juce::Timer {
     juce::TextButton colourLeft{"L / Colour"},colourRight{"R / Colour"};
     std::array<juce::Slider,6> fftSliders;
     std::array<juce::Label,7> fftLabels;
-    juce::ToggleButton clean{"Clean"},listen{"Listen band"},xy3D{"3D / Time"},xyFollow{"Follow input"};
+    juce::ToggleButton clean{"Clean"},wireframe{"Wireframe"},listen{"Listen band"},xy3D{"3D / Time"},xyFollow{"Follow input"};
     juce::Slider xyTime,xyFade;juce::Label xyTimeLabel,xyFadeLabel;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> xy3DAttachment,xyFollowAttachment,cleanAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> xy3DAttachment,xyFollowAttachment,cleanAttachment,wireframeAttachment;
     juce::TextButton clearBand{"Clear band"};
     std::array<juce::Slider,2> bandSliders;
     std::array<juce::Label,2> bandLabels;
@@ -187,13 +188,14 @@ class FluidEditor : public juce::AudioProcessorEditor, private juce::Timer {
         for(auto* c:{&combos[0],&combos[1],&combos[2],&combos[3],&xySource,&style,&fftScale,&fftSource,&fftWeight,&fftAverage}) {c->setColour(juce::ComboBox::backgroundColourId,a.panel);c->setColour(juce::ComboBox::textColourId,a.text);c->setColour(juce::ComboBox::outlineColourId,a.grid);}
         auto label=[&](auto& list){for(auto& l:list)l.setColour(juce::Label::textColourId,a.muted);};label(labels);label(xyLabels);label(styleLabels);label(fftLabels);label(bandLabels);label(fftHeaderLabels);
         for(auto* b:{&freeze,&single,&resume,&clearBand,&fullButton}) {b->setColour(juce::TextButton::buttonColourId,a.grid);b->setColour(juce::TextButton::textColourOffId,a.text);}
-        clean.setColour(juce::ToggleButton::textColourId,a.text);clean.setColour(juce::ToggleButton::tickColourId,a.left);xyFollow.setColour(juce::ToggleButton::textColourId,a.text);xyFollow.setColour(juce::ToggleButton::tickColourId,a.left);xy3D.setColour(juce::ToggleButton::textColourId,a.text);xy3D.setColour(juce::ToggleButton::tickColourId,a.left);xyTimeLabel.setColour(juce::Label::textColourId,a.muted);xyFadeLabel.setColour(juce::Label::textColourId,a.muted);listen.setColour(juce::ToggleButton::textColourId,a.text);listen.setColour(juce::ToggleButton::tickColourId,a.right);
+        wireframe.setColour(juce::ToggleButton::textColourId,a.text);wireframe.setColour(juce::ToggleButton::tickColourId,a.left);clean.setColour(juce::ToggleButton::textColourId,a.text);clean.setColour(juce::ToggleButton::tickColourId,a.left);xyFollow.setColour(juce::ToggleButton::textColourId,a.text);xyFollow.setColour(juce::ToggleButton::tickColourId,a.left);xy3D.setColour(juce::ToggleButton::textColourId,a.text);xy3D.setColour(juce::ToggleButton::tickColourId,a.left);xyTimeLabel.setColour(juce::Label::textColourId,a.muted);xyFadeLabel.setColour(juce::Label::textColourId,a.muted);listen.setColour(juce::ToggleButton::textColourId,a.text);listen.setColour(juce::ToggleButton::tickColourId,a.right);
         colourLeft.setColour(juce::TextButton::buttonColourId,a.left);colourLeft.setColour(juce::TextButton::textColourOffId,a.left.contrasting());colourRight.setColour(juce::TextButton::buttonColourId,a.right);colourRight.setColour(juce::TextButton::textColourOffId,a.right.contrasting());
     }
     void clearDisplay() { trace=Trace{}; phosphor=juce::Image(); lastDecay=0; replaceHistory=false; }
     void clear() { clearDisplay(); capture.resetTrigger(); seen=capture.generation; }
 public:
     FluidEditor(FluidProcessor& p) : AudioProcessorEditor(p),proc(p),spectrum(p.analyser,p.state),depth(p.analyser,p.state),xyDepth(p.analyser,p.state,&capture),waveTile(capture,p.state,false),xyTile(capture,p.state,true) {
+        addAndMakeVisible(wireframe);wireframeAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.state,"fftWireframe",wireframe);
         addAndMakeVisible(clean);cleanAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.state,"clean",clean);
         const char* ids[] = {"time","gain","level","hyst","hold","pre","persistence"};
         const char* names[] = {"WINDOW / ms","GAIN","TRIGGER LEVEL","HYSTERESIS","HOLDOFF / ms","PRE-TRIGGER / %","PERSIST / ms"};
@@ -271,7 +273,6 @@ public:
     }
     void resized() override {
         const int w=getWidth();
-        clean.setBounds(130,124,110,22);
         fullButton.setBounds(w-410,20,165,26);
         for(int i=0;i<4;++i) { int x=22+i*int((w-320)/4); int width=int((w-340)/4); labels[size_t(i+7)].setBounds(x,62,width,18); combos[size_t(i)].setBounds(x,82,width,28); }
         freeze.setBounds(w-290,82,82,28); single.setBounds(w-200,82,82,28); resume.setBounds(w-110,82,82,28);
@@ -284,6 +285,11 @@ public:
         for(int i=0;i<3;++i){auto* c=fftHeader[size_t(i)];c->setVisible(fft);c->setBounds(22+(i+1)*int((w-320)/4),82,int((w-340)/4),28);}
         const int styleCell=(w-48)/4;
         for(int i=0;i<4;++i)styleLabels[size_t(i)].setBounds(24+i*styleCell,126,styleCell-12,18);
+        // Give the toggles real, non-overlapping hit areas beside their labels.
+        styleLabels[0].setBounds(24,126,styleCell-116,18);clean.setBounds(24+styleCell-108,123,96,22);clean.toFront(false);
+        const bool fftDepth=int(value("view"))==3||quad();wireframe.setVisible(fftDepth);
+        if(fftDepth)styleLabels[2].setSize(styleCell-122,18);
+        wireframe.setBounds(24+3*styleCell-112,123,102,22);wireframe.toFront(false);
         style.setBounds(24,148,styleCell-14,28);lineWidth.setBounds(24+styleCell,142,styleCell-14,46);
         colourLeft.setBounds(24+2*styleCell,148,(styleCell-22)/2,28);colourRight.setBounds(32+2*styleCell+(styleCell-22)/2,148,(styleCell-22)/2,28);glow.setBounds(24+3*styleCell,142,styleCell-14,46);
         const int xyCell=(w-48)/6;

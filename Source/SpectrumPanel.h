@@ -82,7 +82,7 @@ gl_Position=vec4(camera.w*x*(xyView>.5?2.1/camera.z:min(2.5/camera.z,1.1))+.04*d
 tint=sourceColour;heat=position.y;age=position.z;viewPosition=p;edge=0.;})";
         const char* fs=R"(#version 150
 in vec3 tint;in vec3 viewPosition;in float heat;in float age;noperspective in float edge;uniform float surface;uniform float fade;out vec4 frag;
-void main(){if(surface>.5 && surface<1.5 && heat<.008)discard;float light=1.,alpha=1.;
+void main(){if(surface>.5 && (surface<1.5||surface>2.5) && heat<.008)discard;float light=1.,alpha=1.;
 if(surface>.5){if(fade>.0001)alpha=1.-smoothstep(1.-fade,1.,age);if(surface>1.5)alpha*=1.-smoothstep(.55,1.,abs(edge));if(alpha<.001)discard;}
 if(surface>.5 && surface<1.5){vec3 n=normalize(cross(dFdx(viewPosition),dFdy(viewPosition)));light=.62+.38*abs(dot(n,normalize(vec3(.3,.8,.5))));}
 frag=vec4(tint*light,alpha);})";
@@ -173,10 +173,11 @@ void main(){float alpha=(1.-smoothstep(.55,1.,abs(edge)))*(fade>.0001?1.-smooths
             std::array<float,SpectrumFrame::columns> frequencies{},x{},offset{};for(int c=0;c<SpectrumFrame::columns;++c){float f=spectrumFrequency(float(c)/(SpectrumFrame::columns-1),true,frame->maxFrequency);frequencies[size_t(c)]=f;x[size_t(c)]=spectrumX(f,logarithmic,frame->maxFrequency)*2-1;offset[size_t(c)]=value("fftGain")+weighting*std::log2(f/1000.f);}
             struct RGB{float r,g,b;};std::array<RGB,256> palette;for(int i=0;i<256;++i){float h=i/255.f;auto col=a.panel.interpolatedWith(a.left,std::min(1.f,.18f+h*.95f));if(h>.42f&&int(value("style"))!=3)col=col.interpolatedWith(a.right,std::min(1.f,(h-.42f)/.42f));palette[size_t(i)]={col.getFloatRed(),col.getFloatGreen(),col.getFloatBlue()};}
             for(int r=0;r<frame->rowCount;++r)for(int c=0;c<SpectrumFrame::columns;++c){float h=std::clamp((frame->history[size_t(r*SpectrumFrame::columns+c)]+offset[size_t(c)]-floorDb)/range,0.f,1.f);auto col=palette[size_t(juce::roundToInt(h*255))];if(listening&&(frequencies[size_t(c)]<low||frequencies[size_t(c)]>high)){col.r*=.25f;col.g*=.25f;col.b*=.25f;}vertices[size_t(r*SpectrumFrame::columns+c)]={x[size_t(c)],h,frame->ages[size_t(r)],col.r,col.g,col.b};}
-            glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(Vertex)),vertices.data(),GL_DYNAMIC_DRAW);surface->set(1.f);const float yr=angleYaw()*juce::MathConstants<float>::pi/180,pr=anglePitch()*juce::MathConstants<float>::pi/180;
+            glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(Vertex)),vertices.data(),GL_DYNAMIC_DRAW);const bool wire=value("fftWireframe")>.5f;surface->set(wire?3.f:1.f);if(wire)glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);const float yr=angleYaw()*juce::MathConstants<float>::pi/180,pr=anglePitch()*juce::MathConstants<float>::pi/180;
             const int order=(std::cos(yr)*std::cos(pr)<0?1:0)|(-std::sin(yr)*std::cos(pr)<0?2:0);
             const size_t firstRow=size_t(order)*(SpectrumFrame::rows-1)+((order&1)?0:size_t(SpectrumFrame::rows-frame->rowCount));
             if(frame->rowCount>1)glDrawElements(GL_TRIANGLES,(frame->rowCount-1)*(SpectrumFrame::columns-1)*6,GL_UNSIGNED_INT,reinterpret_cast<const void*>(firstRow*(SpectrumFrame::columns-1)*6*sizeof(unsigned)));
+            if(wire)glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
         }
         glDisable(GL_BLEND);glActiveTexture(GL_TEXTURE0);glBindVertexArray(0);glDisable(GL_DEPTH_TEST);
         auto overlay=std::atomic_load(&overlayImage);

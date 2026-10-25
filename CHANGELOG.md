@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.7
+
+- Fixed the normal editor's Clean toggle hit area: appearance labels no longer cover it.
+- Added actual hit-target and toggle-click regressions for all views at minimum/default editor widths.
+- Added a saved 3D FFT Wireframe toggle, available in the editor, Quad and fullscreen; can be combined with Clean mode.
+
 ## 0.4.6
 
 - Full horizontal and vertical orbit rotation in 3D FFT and 3D XY, with continuous wrap and double-click reset.

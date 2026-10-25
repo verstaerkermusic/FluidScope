@@ -4,7 +4,7 @@
 
 Ein Audio-Oszilloskop von **verstaerker**, entwickelt für eine flüssige Darstellung, stabiles Triggering und einen gut lesbaren Blick in den Klang. Wellenform, Lissajous und Spektralanalyse treffen auf räumliche Zeitverläufe, eigene Farben und eine große Vollbildansicht.
 
-**macOS Apple Silicon · VST3 + eigenständige App · Version 0.4.6 · GPLv3 oder später**
+**macOS Apple Silicon · VST3 + eigenständige App · Version 0.4.7 · GPLv3 oder später**
 
 [English](docs/README.en.md) · [Kurzanleitung](docs/KURZANLEITUNG.md) · [GUI-Galerie](docs/GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
 
@@ -33,6 +33,7 @@ Daraus ist FluidScope geworden.
 - **Lesbare FFT:** getrennte Regler für 2D Release und 3D Decay, Frequenzglättung und visuelle Gewichtung. FFT Gain verändert nur die Anzeige.
 - **Bereiche vorhören:** Frequenzband auswählen und „Listen band“ einschalten. So lässt sich hören, welche Klanganteile dort liegen.
 - **3D erkunden:** Ziehen dreht die Perspektive; Mausrad/Trackpad zoomt von 50 bis 300 %. Der hintere Teil des Verlaufs kann weich ausblenden.
+- **Wireframe:** zeigt die 3D-FFT als Liniennetz statt als gefüllte Fläche, auch in Quad und Vollbild.
 - **Clean Mode:** blendet Raster, Skalen, Achsen und Hinweistexte in allen Ansichten aus; die Regler bleiben bedienbar.
 - **Eigener Look:** klassische Grün- und Amber-Töne, Schwarzweiß und moderne Paletten, freie Farben, Liniendicke und Glow.
 - **Groß anzeigen:** Vollbild auf dem Bildschirm des Plugins, auch über schwebenden DAW-Fenstern.
