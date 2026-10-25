@@ -1,10 +1,12 @@
 # FluidScope
 
+<img src="../assets/FluidScope.png" alt="FluidScope app icon" width="128">
+
 ### The oscilloscope I always wanted. Waveforms in motion.
 
 An audio oscilloscope by **verstaerker**, built around fluid motion, stable triggering and a readable view into sound. Explore stereo waveforms, XY/Lissajous figures and spectra, then add time as a third dimension.
 
-**macOS Apple Silicon · VST3 + standalone · 0.4.7 · GPLv3 or later**
+**macOS Apple Silicon + Intel · VST3 + standalone · 0.4.8 · GPLv3 or later**
 
 [Deutsch](../README.md) · [Quick start](QUICKSTART.en.md) · [Gallery](GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
 
@@ -30,9 +32,9 @@ Select and audition a frequency band. Pick a classic green, amber or monochrome 
 
 ## Install
 
-Download and extract the macOS-arm64 release. Copy `FluidScope.vst3` into `~/Library/Audio/Plug-Ins/VST3/`, then restart your DAW and rescan if needed. The manufacturer is **verstaerker**. To run without a DAW, copy and launch `FluidScope.app`.
+Download and extract the macOS Universal release. Copy `FluidScope.vst3` into `~/Library/Audio/Plug-Ins/VST3/`, then restart your DAW and rescan if needed. The manufacturer is **verstaerker**. To run without a DAW, copy and launch `FluidScope.app`.
 
-Requires macOS 12+ and Apple Silicon. VST3 and standalone only; no AU, Windows or Intel build is included. Downloads are ad-hoc signed, not notarized, so macOS may request additional approval.
+Requires macOS 12+ on Apple Silicon or Intel. VST3 and standalone only; no AU or Windows build is included. 3D views require OpenGL 3.2+. Intel binaries were cross-built and regression-tested under Rosetta; native Intel hardware testing is still pending. Downloads are ad-hoc signed, not notarized, so macOS may request additional approval.
 
 ## Notes
 

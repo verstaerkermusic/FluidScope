@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(FluidScope VERSION 0.4.7 LANGUAGES C CXX)
+project(FluidScope VERSION 0.4.8 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 12.0)
 set(JUCE_PATH "${CMAKE_CURRENT_LIST_DIR}/vendor/JUCE" CACHE PATH "JUCE source directory")
@@ -7,6 +7,7 @@ add_subdirectory("${JUCE_PATH}" juce)
 juce_add_plugin(FluidScope COMPANY_NAME "verstaerker" BUNDLE_ID "audio.tino.fluidscope"
 # Keep existing four-character IDs so saved sessions still recognise the plugin.
     PLUGIN_MANUFACTURER_CODE Tino PLUGIN_CODE FlSc PRODUCT_NAME "FluidScope"
+    ICON_BIG "${CMAKE_CURRENT_LIST_DIR}/assets/FluidScope.png"
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT "FluidScope analyses the audio input you select. Audio stays on this Mac."
     FORMATS VST3 Standalone IS_SYNTH FALSE NEEDS_MIDI_INPUT FALSE COPY_PLUGIN_AFTER_BUILD FALSE)

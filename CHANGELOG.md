@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.8
+
+- Added the selected Lissajous Ribbon macOS app icon, with icon sizes generated from a transparent PNG.
+- Prepared Intel x86_64 and Universal arm64+x86_64 binaries; Intel regression checks run under Rosetta, with native Intel hardware testing still pending.
+
 ## 0.4.7
 
 - Fixed the normal editor's Clean toggle hit area: appearance labels no longer cover it.

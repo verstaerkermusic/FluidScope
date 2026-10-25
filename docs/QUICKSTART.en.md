@@ -1,6 +1,6 @@
 # FluidScope – Quick start
 
-**0.4.7 · verstaerker · macOS Apple Silicon**
+**0.4.8 · verstaerker · macOS Apple Silicon + Intel**
 
 1. Insert the VST3 on an audio track, or launch the standalone app and choose your input device. Desktop playback requires a suitable loopback input.
 2. Start in **Stereo** with Auto / Left / Rising. Set Window to the time span you want to see. Adjust trigger level, hysteresis and holdoff for a repeating waveform. Gain is display-only.
