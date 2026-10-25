@@ -1,6 +1,6 @@
 # FluidScope – Quick start
 
-**0.4.5 · verstaerker · macOS Apple Silicon**
+**0.4.6 · verstaerker · macOS Apple Silicon**
 
 1. Insert the VST3 on an audio track, or launch the standalone app and choose your input device. Desktop playback requires a suitable loopback input.
 2. Start in **Stereo** with Auto / Left / Rising. Set Window to the time span you want to see. Adjust trigger level, hysteresis and holdoff for a repeating waveform. Gain is display-only.
@@ -10,8 +10,10 @@
 6. Enable **3D / Time** for a time axis; 3D Time spans 0.02–2 seconds. In 2D, use Window / ms instead.
 7. For a readable FFT, start with Log frequency, Music +3 dB/oct, 1/24 octave smoothing and 180-ms 2D Release. Flat / None / FFT Gain 0 dB gives a less altered amplitude view. Weighting and gain change the display only.
 8. **3D / History** shows 2–12 seconds of spectra. Its separate 3D Decay controls added visual release; 0 adds no tail. Rear Fade 25% fades the oldest quarter of the history or XY trajectory.
-9. Drag a 3D view to rotate; use the wheel/trackpad for 50–300% zoom. Double-click resets its camera and zoom. In Quad, double-click expands a panel instead. Shift-drag the 3D spectrum's front axis to select a band.
+9. Drag a 3D view to rotate freely in either direction; use the wheel/trackpad for 50–300% zoom. Double-click resets its camera and zoom. In Quad, double-click expands a panel instead. Shift-drag the 3D spectrum's front axis to select a band.
 10. **Full screen / F11** opens the presentation. F11, Return or the button returns to controls; Escape also disables band audition.
+
+**Clean** hides grids, scales, axes and plot hints in every view, including Quad and full screen. It changes neither audio nor captured data, and controls remain accessible.
 
 ## Auditioning a band
 

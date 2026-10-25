@@ -1,6 +1,6 @@
 # FluidScope – Kurzanleitung
 
-**Version 0.4.5 · verstaerker · macOS Apple Silicon**
+**Version 0.4.6 · verstaerker · macOS Apple Silicon**
 
 ## 1. Loslegen
 
@@ -63,7 +63,7 @@ Mit der Maus über der 2D-Kurve werden Frequenz, dargestellter Pegel und nächst
 
 ## 6. 3D bedienen und groß anzeigen
 
-- **Ziehen:** Perspektive drehen, innerhalb begrenzter Winkel.
+- **Ziehen:** Perspektive horizontal und vertikal rundum drehen.
 - **Mausrad/Trackpad:** Zoom zwischen 50 und 300 %.
 - **Doppelklick:** Perspektive und Zoom zurücksetzen. In Quad vergrößert ein Doppelklick das Feld; dort zum Zurücksetzen zunächst in die Einzelansicht wechseln.
 - **Shift-Ziehen im 3D-Spektrum:** Frequenzband an der vorderen Achse auswählen.
@@ -78,7 +78,11 @@ Ausschalten, **Clear band** oder **Escape** führt nach einem kurzen Übergang z
 
 Der Listen-Zustand wird im DAW-Projekt gespeichert. Auf die sichtbare **LISTENING**-Anzeige achten.
 
-## 8. Farben, Linien und Leistung
+## 8. Clean Mode
+
+**Clean** neben Appearance blendet Raster, Skalen, Achsen, Trigger-Markierungen und Plot-Hinweise aus. Die Einstellung gilt gemeinsam für alle Ansichten, Quad und Vollbild. In der Vollbild-Kopfzeile lässt sie sich ebenfalls umschalten. Die Regler und der Rückweg zum Plugin bleiben erreichbar. Die Messdaten und das Audio bleiben unverändert.
+
+## 9. Farben, Linien und Leistung
 
 **Appearance** bietet Mint, Classic green, Amber CRT, Monochrome, Paper, Ice, Neon und Custom. **L/R Colour** öffnet die freie Farbauswahl. **Line / px** regelt die Dicke, **Glow / %** das Leuchten. Einstellungen werden mit dem Projekt gespeichert.
 

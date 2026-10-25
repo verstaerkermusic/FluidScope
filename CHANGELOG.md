@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.6
+
+- Full horizontal and vertical orbit rotation in 3D FFT and 3D XY, with continuous wrap and double-click reset.
+- Legacy camera parameter ranges and saved perspectives retained; new orbit offsets default to zero.
+- Camera-dependent FFT mesh traversal for views from either side.
+- Saved Clean mode removes plot grids, scales, axes, markers and hints across all views, Quad and fullscreen; controls remain accessible.
+- Escape from a focused spectrum panel can bubble to the fullscreen presentation.
+
 ## 0.4.5
 
 - Mouse-wheel/trackpad zoom in 3D FFT and 3D XY; separate saved zoom values and double-click reset.

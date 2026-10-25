@@ -37,7 +37,8 @@ int main(int argc,char** argv) {
         if(xy3d){set("view",1);set("xy3D",1);set("xyFollow",1);set("xyAmp",1);set("xy3DTime",mode=="xy3d"?.2f:2.f);set("xySource",2);set("xyFreq",220);set("xyPhase",90);}
         const bool longHistory=mode=="depth-long";const int durationMs=longHistory?16000:6000;
         if(longHistory){set("view",3);set("history",12);}
-        if(mode=="fft"){set("view",2);set("fftGain",12);}if(mode=="depth"){set("view",3);set("history",2);set("fftGain",12);}if(mode=="quad")set("view",4);
+        if(mode=="fft"){set("view",2);set("fftGain",12);}if(mode.startsWith("depth")&&mode!="depth-long"){set("view",3);set("history",2);set("fftGain",12);}if(mode.startsWith("quad"))set("view",4);
+        if(mode.contains("clean")){set("clean",1);set("historyOrbitYaw",130);set("historyOrbitPitch",-110);set("xyOrbitYaw",120);set("xyOrbitPitch",110);}
         const bool full=argc>5 && juce::String(argv[5])=="full";
         if(argc>6){set("historyZoom",juce::String(argv[6]).getFloatValue());set("xyZoom",juce::String(argv[6]).getFloatValue());}
         struct Window : juce::DocumentWindow {
@@ -68,7 +69,7 @@ int main(int argc,char** argv) {
                 while(sample+512<=target) {
                     for(int i=0;i<512;++i) {
                         double t=double(sample+i)/benchRate;
-                        if(mode=="fft"||mode=="depth"||mode=="depth-long"||mode=="quad") {
+                        if(mode=="fft"||mode.startsWith("depth")||mode.startsWith("quad")) {
                             constexpr double tau=6.283185307179586;double beat=std::fmod(t,.5),backbeat=std::fmod(t+.25,.5);
                             double kick=.5*std::exp(-beat*22)*std::sin(tau*(52*beat+1.3*(1-std::exp(-beat*45))));
                             noiseState^=noiseState<<13;noiseState^=noiseState>>17;noiseState^=noiseState<<5;
@@ -97,7 +98,7 @@ int main(int argc,char** argv) {
         composite=[&](juce::Component& component){if(auto* panel=dynamic_cast<fluid::SpectrumPanel*>(&component))if(auto image=panel->capturedImage()) {
             auto bounds=shown->getLocalArea(panel,panel->getLocalBounds());juce::Graphics g(live);g.drawImage(*image,bounds.toFloat());++gpuImages;
         }for(int i=0;i<component.getNumChildComponents();++i)composite(*component.getChildComponent(i));};
-        composite(*shown);if(mode=="depth"||mode=="depth-long"||mode=="quad"||xy3d)check(gpuImages>0,"3D context renders and exports real GPU data");
+        composite(*shown);if(mode.startsWith("depth")||mode.startsWith("quad")||xy3d)check(gpuImages>0,"3D context renders and exports real GPU data");
         juce::FileOutputStream preview(juce::File::getCurrentWorkingDirectory().getChildFile("FluidScope-live-"+mode+(full?"-full":"")+".png"));preview.setPosition(0);preview.truncate();juce::PNGImageFormat().writeImageToStream(live,preview);
         if(full){editor->keyPressed(juce::KeyPress(juce::KeyPress::F11Key));check(!bool(editor->getProperties()["fullScreenOpen"]),"fullscreen returns to host");check(window.isShowing()&&window.isAlwaysOnTop(),"host editor remains visible with its original window setting");
             editor->keyPressed(juce::KeyPress(juce::KeyPress::F11Key));auto* reopened=presentation();check(reopened&&fluid::presentationAboveOwner(*reopened,window),"fullscreen can reopen with correct ordering");
@@ -162,7 +163,19 @@ int main(int argc,char** argv) {
         wheel.deltaY=-100;target->mouseWheelMove(e,wheel);check(std::abs(parameter(id)->convertFrom0to1(parameter(id)->getValue())-.5f)<1e-5,"3D zoom lower bound");
         wheel.deltaY=100;target->mouseWheelMove(e,wheel);check(std::abs(parameter(id)->convertFrom0to1(parameter(id)->getValue())-3.f)<1e-5,"3D zoom upper bound");
         target->mouseDoubleClick(e);check(std::abs(parameter(id)->convertFrom0to1(parameter(id)->getValue())-1.f)<1e-5,"Double click restores the 3D camera zoom");
+        const char* orbitYaw=mode==3?"historyOrbitYaw":"xyOrbitYaw",*orbitPitch=mode==3?"historyOrbitPitch":"xyOrbitPitch";
+        target->mouseDown(e);target->mouseDrag(e.withNewPosition(juce::Point<float>(2120,-1080)));target->mouseUp(e);
+        check(std::abs(parameter(orbitYaw)->convertFrom0to1(parameter(orbitYaw)->getValue()))>90,"3D yaw rotates beyond the former narrow bounds and wraps after a revolution");
+        check(parameter(orbitPitch)->convertFrom0to1(parameter(orbitPitch)->getValue())<-40,"3D elevation reaches below the original coordinate plane");
+        target->mouseDoubleClick(e);check(std::abs(parameter(orbitYaw)->convertFrom0to1(parameter(orbitYaw)->getValue()))<1e-5 && std::abs(parameter(orbitPitch)->convertFrom0to1(parameter(orbitPitch)->getValue()))<1e-5,"Double click resets both orbit offsets");
     }
+    check(parameter("cameraYaw")->getNormalisableRange().start==-32 && parameter("cameraPitch")->getNormalisableRange().start==18,"Legacy camera automation ranges remain unchanged");
+    set("view",1);set("xy3D",0);set("clean",0);juce::MessageManager::getInstance()->runDispatchLoopUntil(35);
+    auto gridCount=[&]{auto picture=editor->createComponentSnapshot(editor->getLocalBounds(),true,1.f);int n=0;auto grid=fluid::appearance(int(parameter("style")->convertFrom0to1(parameter("style")->getValue())),0x56e2c2,0xf3ac71).grid;
+        for(int y=370;y<picture.getHeight()-135;++y)for(int x=40;x<picture.getWidth()-40;++x)if(picture.getPixelAt(x,y)==grid)++n;return n;};
+    const auto normalGrid=gridCount();set("clean",1);juce::MessageManager::getInstance()->runDispatchLoopUntil(25);const auto cleanGrid=gridCount();
+    check(normalGrid>500 && cleanGrid<normalGrid/10,"Clean display removes the actual XY grid pixels");
+    set("clean",0);
     set("view",2);set("xy3D",0);juce::MessageManager::getInstance()->runDispatchLoopUntil(30);
     image=editor->createComponentSnapshot(editor->getLocalBounds(),true,1.f);
     set("xyFollow",1);
@@ -173,10 +186,10 @@ int main(int argc,char** argv) {
     check(changedPixels>1000,"FFT visual gain shifts the rendered spectrum");
     juce::AudioBuffer<float> gainOriginal;gainOriginal.makeCopyOf(audio);p->processBlock(audio,midi);
     for(int ch=0;ch<2;++ch)for(int i=0;i<audio.getNumSamples();++i)check(audio.getSample(ch,i)==gainOriginal.getSample(ch,i),"FFT visual gain leaves audio bit-exact");
-    set("rearFade",25);set("xy3DTime",.35f);set("historyDecay",65);set("xyZoom",1.8f);set("historyZoom",1.4f);
+    set("rearFade",25);set("xy3DTime",.35f);set("historyDecay",65);set("xyZoom",1.8f);set("historyZoom",1.4f);set("clean",1);set("historyOrbitYaw",150);set("xyOrbitPitch",-120);
     set("style",1);set("lineWidth",2.2f);set("bandLow",55);set("bandHigh",140);set("listen",1);
-    p->getStateInformation(state);set("style",0);set("listen",0);set("fftGain",0);set("xyFollow",0);set("xyZoom",1);set("historyZoom",1);p->setStateInformation(state.getData(),int(state.getSize()));
-    check(parameter("style")->convertFrom0to1(parameter("style")->getValue())==1 && parameter("listen")->getValue()==1,"appearance and audition state restore");check(std::abs(parameter("rearFade")->convertFrom0to1(parameter("rearFade")->getValue())-25)<.01f,"rear fade persists");check(std::abs(parameter("xy3DTime")->convertFrom0to1(parameter("xy3DTime")->getValue())-.35f)<.001f,"3D XY time persists");check(std::abs(parameter("historyDecay")->convertFrom0to1(parameter("historyDecay")->getValue())-65)<.01f,"3D visual decay persists");check(std::abs(parameter("fftGain")->convertFrom0to1(parameter("fftGain")->getValue())-24)<.01f,"FFT visual gain persists");check(parameter("xyFollow")->getValue()==1,"XY envelope-follow toggle persists");check(std::abs(parameter("xyZoom")->convertFrom0to1(parameter("xyZoom")->getValue())-1.8f)<.001f && std::abs(parameter("historyZoom")->convertFrom0to1(parameter("historyZoom")->getValue())-1.4f)<.001f,"Independent 3D zoom levels persist");set("listen",0);set("fftGain",0);
+    p->getStateInformation(state);set("style",0);set("listen",0);set("fftGain",0);set("xyFollow",0);set("xyZoom",1);set("historyZoom",1);set("clean",0);set("historyOrbitYaw",0);set("xyOrbitPitch",0);p->setStateInformation(state.getData(),int(state.getSize()));
+    check(parameter("style")->convertFrom0to1(parameter("style")->getValue())==1 && parameter("listen")->getValue()==1,"appearance and audition state restore");check(std::abs(parameter("rearFade")->convertFrom0to1(parameter("rearFade")->getValue())-25)<.01f,"rear fade persists");check(std::abs(parameter("xy3DTime")->convertFrom0to1(parameter("xy3DTime")->getValue())-.35f)<.001f,"3D XY time persists");check(std::abs(parameter("historyDecay")->convertFrom0to1(parameter("historyDecay")->getValue())-65)<.01f,"3D visual decay persists");check(std::abs(parameter("fftGain")->convertFrom0to1(parameter("fftGain")->getValue())-24)<.01f,"FFT visual gain persists");check(parameter("xyFollow")->getValue()==1,"XY envelope-follow toggle persists");check(std::abs(parameter("xyZoom")->convertFrom0to1(parameter("xyZoom")->getValue())-1.8f)<.001f && std::abs(parameter("historyZoom")->convertFrom0to1(parameter("historyZoom")->getValue())-1.4f)<.001f,"Independent 3D zoom levels persist");check(parameter("clean")->getValue()==1 && std::abs(parameter("historyOrbitYaw")->convertFrom0to1(parameter("historyOrbitYaw")->getValue())-150)<.001f && std::abs(parameter("xyOrbitPitch")->convertFrom0to1(parameter("xyOrbitPitch")->getValue())+120)<.001f,"Clean mode and full orbit settings persist");set("clean",0);set("listen",0);set("fftGain",0);
     set("bandLow",800);set("bandHigh",1200);set("listen",1);
     std::array<double,3> sine{},cosine{};constexpr double frequencies[]={100,1000,8000};int measured=0;
     for(int block=0;block<160;++block) {

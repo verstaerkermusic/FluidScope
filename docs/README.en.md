@@ -4,7 +4,7 @@
 
 An audio oscilloscope by **verstaerker**, built around fluid motion, stable triggering and a readable view into sound. Explore stereo waveforms, XY/Lissajous figures and spectra, then add time as a third dimension.
 
-**macOS Apple Silicon · VST3 + standalone · 0.4.5 · GPLv3 or later**
+**macOS Apple Silicon · VST3 + standalone · 0.4.6 · GPLv3 or later**
 
 [Deutsch](../README.md) · [Quick start](QUICKSTART.en.md) · [Gallery](GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
 
@@ -19,10 +19,12 @@ FluidScope brings five views together:
 - **Stereo:** two traces, fractional-sample trigger alignment, hysteresis, holdoff, pre-trigger, Freeze, Single and phosphor persistence.
 - **XY / Lissajous:** left against right, delayed left or an internal sine. Add time as a third axis. The sine can follow the left input's envelope.
 - **FFT / Spectrum:** log/linear frequency scales, frequency smoothing, display weighting, peak trace and visual-only gain.
-- **3D / History:** 2–12 seconds of spectral history, bounded camera rotation, mouse-wheel zoom and a soft rear fade.
+- **3D / History:** 2–12 seconds of spectral history, unrestricted horizontal and vertical orbit rotation, mouse-wheel zoom and a soft rear fade.
 - **Quad:** waveform, XY, spectrum and 3D history together.
 
 Select and audition a frequency band. Pick a classic green, amber or monochrome look, choose a modern palette, or set your own colours, line width and glow. Use full screen when you want the signal to fill the display.
+
+**Clean mode** hides grids, scales, axes and plot hints in every view, including Quad and full screen. Controls stay accessible.
 
 ## Install
 

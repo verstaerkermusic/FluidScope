@@ -20,7 +20,7 @@ class SpectrumPanel : public juce::Component, private juce::OpenGLRenderer {
     std::atomic<bool> captureRequested{false};
     std::shared_ptr<const juce::Image> captured,overlayImage,uploadedOverlay;
     juce::OpenGLTexture overlayTexture;
-    std::array<float,18> overlayKey{};
+    std::array<float,19> overlayKey{};
     unsigned lastSequence=0;
     std::unique_ptr<juce::OpenGLShaderProgram> shader;
     std::unique_ptr<juce::OpenGLShaderProgram::Attribute> position,colour;
@@ -34,8 +34,12 @@ class SpectrumPanel : public juce::Component, private juce::OpenGLRenderer {
     std::vector<unsigned> indices;
     float value(const char* id) const {return state.getRawParameterValue(id)->load();}
     void set(const char* id,float v) {auto* p=state.getParameter(id);p->setValueNotifyingHost(p->convertTo0to1(v));}
-    const char* yawID()const{return xyCapture?"xyYaw":"cameraYaw";}
-    const char* pitchID()const{return xyCapture?"xyPitch":"cameraPitch";}
+    const char* yawID()const{return xyCapture?"xyOrbitYaw":"historyOrbitYaw";}
+    const char* pitchID()const{return xyCapture?"xyOrbitPitch":"historyOrbitPitch";}
+    const char* baseYawID()const{return xyCapture?"xyYaw":"cameraYaw";}
+    const char* basePitchID()const{return xyCapture?"xyPitch":"cameraPitch";}
+    float angleYaw()const{return value(baseYawID())+value(yawID());}
+    float anglePitch()const{return value(basePitchID())+value(pitchID());}
     const char* zoomID()const{return xyCapture?"xyZoom":"historyZoom";}
     Appearance theme() const {return appearance(int(value("style")),int(value("colourL")),int(value("colourR")));}
     float tilt() const {const int w=int(value("fftWeight"));return w==0?0.f:w==1?3.f:w==2?4.5f:value("fftTilt");}
@@ -44,7 +48,7 @@ class SpectrumPanel : public juce::Component, private juce::OpenGLRenderer {
     float maxFrequency() const {auto p=analyser.snapshot();return p?p->maxFrequency:20000.f;}
     static juce::String hz(float f) {return f>=1000?juce::String(f/1000.f, f>=10000?0:1)+"k":juce::String(juce::roundToInt(f));}
     juce::Point<float> project(float x,float y,float age) const {
-        const float yaw=value(yawID())*juce::MathConstants<float>::pi/180,pitch=value(pitchID())*juce::MathConstants<float>::pi/180;
+        const float yaw=angleYaw()*juce::MathConstants<float>::pi/180,pitch=anglePitch()*juce::MathConstants<float>::pi/180;
         const float xx=x*2.1f,yy=y*1.5f-.4f,zz=1.4f*(1-2*age);
         const float rx=xx*std::cos(yaw)+zz*std::sin(yaw),rz=-xx*std::sin(yaw)+zz*std::cos(yaw);
         const float ry=yy*std::cos(pitch)-rz*std::sin(pitch),depth=4.5f-(yy*std::sin(pitch)+rz*std::cos(pitch));
@@ -54,7 +58,7 @@ class SpectrumPanel : public juce::Component, private juce::OpenGLRenderer {
     float mouseFrequency(juce::Point<float> p) const {
         float x=0;
         if(threeD) {auto a=project(-1,0,0),b=project(1,0,0);auto d=b-a;float screen=std::clamp(((p-a).x*d.x+(p-a).y*d.y)/std::max(1.f,d.x*d.x+d.y*d.y),0.f,1.f);
-            const float yaw=value(yawID())*juce::MathConstants<float>::pi/180,pitch=value(pitchID())*juce::MathConstants<float>::pi/180;
+            const float yaw=angleYaw()*juce::MathConstants<float>::pi/180,pitch=anglePitch()*juce::MathConstants<float>::pi/180;
             auto depth=[&](float xx){return 4.5f-(-.4f*std::sin(pitch)+(-xx*std::sin(yaw)+1.4f*std::cos(yaw))*std::cos(pitch));};
             float d0=depth(-2.1f),d1=depth(2.1f);x=screen*d0/(d1-screen*(d1-d0));}
         else x=(p.x-48.f)/std::max(1.f,float(getWidth()-68));
@@ -120,7 +124,8 @@ void main(){float alpha=(1.-smoothstep(.55,1.,abs(edge)))*(fade>.0001?1.-smooths
         glGenTextures(1,&waveTexture);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,waveTexture);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);std::array<TrajectoryFrame::Sample,TrajectoryFrame::textureWidth> silence{};glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,TrajectoryFrame::textureWidth,1,0,GL_RGBA,GL_FLOAT,silence.data());waveRows=1;glActiveTexture(GL_TEXTURE0);
         glGenVertexArrays(1,&vao);glGenBuffers(1,&vbo);glGenBuffers(1,&ibo);
         indices.clear();
-        for(int r=SpectrumFrame::rows-2;r>=0;--r)for(int c=0;c<SpectrumFrame::columns-1;++c) {
+        if(!xyCapture)for(int order=0;order<4;++order)for(int row=0;row<SpectrumFrame::rows-1;++row)for(int col=0;col<SpectrumFrame::columns-1;++col) {
+            const int r=(order&1)?row:SpectrumFrame::rows-2-row,c=(order&2)?SpectrumFrame::columns-2-col:col;
             unsigned a=unsigned(r*SpectrumFrame::columns+c),b=a+SpectrumFrame::columns;
             for(unsigned i:{a,b,a+1,a+1,b,b+1})indices.push_back(i);
         }
@@ -140,7 +145,7 @@ void main(){float alpha=(1.-smoothstep(.55,1.,abs(edge)))*(fade>.0001?1.-smooths
         const int width=canvasWidth.load(),height=canvasHeight.load();
         glViewport(0,0,juce::roundToInt(width*context.getRenderingScale()),juce::roundToInt(height*context.getRenderingScale()));
         glEnable(GL_DEPTH_TEST);glDepthMask(GL_TRUE);glDepthFunc(GL_LEQUAL);glDisable(GL_CULL_FACE);glDisable(GL_BLEND);
-        shader->use();camera->set(value(yawID())*juce::MathConstants<float>::pi/180,value(pitchID())*juce::MathConstants<float>::pi/180,float(width)/std::max(1,height),value(zoomID()));
+        shader->use();camera->set(angleYaw()*juce::MathConstants<float>::pi/180,anglePitch()*juce::MathConstants<float>::pi/180,float(width)/std::max(1,height),value(zoomID()));
         fade->set(value("rearFade")*.01f);xyView->set(xyCapture?1.f:0.f);
         const bool logarithmic=value("fftScale")<.5f;const float low=std::min(value("bandLow"),value("bandHigh")),high=std::max(value("bandLow"),value("bandHigh"));
         glBindVertexArray(vao);glBindBuffer(GL_ARRAY_BUFFER,vbo);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,ibo);
@@ -151,14 +156,14 @@ void main(){float alpha=(1.-smoothstep(.55,1.,abs(edge)))*(fade>.0001?1.-smooths
         for(int i=0;i<=8;++i){float bound=xyCapture?.4761904762f:1.f;float x=-bound+i*bound*.25f,z=i/8.f;add(x,xyCapture?.4f:0.f,0);add(x,xyCapture?.4f:0.f,1);add(-bound,xyCapture?.4f:0.f,z);add(bound,xyCapture?.4f:0.f,z);}
         if(xyCapture){add(0,-.2666667f,0);add(0,1.0666667f,0);}else{add(-1,0,0);add(-1,1,0);}
         if(!xyCapture&&(low>20.1f||high<frame->maxFrequency-.1f)) {auto marker=[&](float x,float y,float z){vertices.push_back({x,y,z,a.right.getFloatRed(),a.right.getFloatGreen(),a.right.getFloatBlue()});};float x0=std::clamp(spectrumX(low,logarithmic,frame->maxFrequency)*2-1,-1.f,1.f),x1=std::clamp(spectrumX(high,logarithmic,frame->maxFrequency)*2-1,-1.f,1.f);for(float x:{x0,x1}){marker(x,0,0);marker(x,1,0);marker(x,0,0);marker(x,0,1);}marker(x0,1,0);marker(x1,1,0);}
-        glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(Vertex)),vertices.data(),GL_DYNAMIC_DRAW);surface->set(0.f);glDrawArrays(GL_LINES,0,int(vertices.size()));
+        glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(Vertex)),vertices.data(),GL_DYNAMIC_DRAW);surface->set(0.f);if(value("clean")<.5f)glDrawArrays(GL_LINES,0,int(vertices.size()));
         glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
         if(xyCapture) {
             glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,waveTexture);
             if(trajectory!=uploadedTrajectory){int rows=int(trajectory->data.size())/TrajectoryFrame::textureWidth;glPixelStorei(GL_UNPACK_ALIGNMENT,4);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);if(rows!=waveRows){glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,TrajectoryFrame::textureWidth,rows,0,GL_RGBA,GL_FLOAT,trajectory->data.data());waveRows=rows;}else glTexSubImage2D(GL_TEXTURE_2D,0,0,0,TrajectoryFrame::textureWidth,rows,GL_RGBA,GL_FLOAT,trajectory->data.data());uploadedTrajectory=trajectory;}
             const double frequency=value("xyFreq"),delay=value("xyDelay")*.001*trajectory->rate;
             const float phase=float(std::remainder((trajectory->base-delay)*frequency/trajectory->rate+value("xyPhase")/360.,1.));
-            lineShader->use();lineWave->set(1);lineCamera->set(value(yawID())*juce::MathConstants<float>::pi/180,value(pitchID())*juce::MathConstants<float>::pi/180,float(width)/std::max(1,height),value(zoomID()));
+            lineShader->use();lineWave->set(1);lineCamera->set(angleYaw()*juce::MathConstants<float>::pi/180,anglePitch()*juce::MathConstants<float>::pi/180,float(width)/std::max(1,height),value(zoomID()));
             lineInfo->set(float(trajectory->first),float(trajectory->points),float(trajectory->requested),value("gain"));lineY->set(value("xySource"),float(delay),float(frequency/trajectory->rate),phase);lineOsc->set(value("xyAmp"),float(trajectory->count),value("xyFollow"));lineStroke->set(float(width),float(height),value("lineWidth"));
             lineColour->set(a.left.getFloatRed(),a.left.getFloatGreen(),a.left.getFloatBlue());lineFade->set(value("rearFade")*.01f);
             glDisableVertexAttribArray(unsigned(position->attributeID));glDisableVertexAttribArray(unsigned(colour->attributeID));
@@ -168,11 +173,14 @@ void main(){float alpha=(1.-smoothstep(.55,1.,abs(edge)))*(fade>.0001?1.-smooths
             std::array<float,SpectrumFrame::columns> frequencies{},x{},offset{};for(int c=0;c<SpectrumFrame::columns;++c){float f=spectrumFrequency(float(c)/(SpectrumFrame::columns-1),true,frame->maxFrequency);frequencies[size_t(c)]=f;x[size_t(c)]=spectrumX(f,logarithmic,frame->maxFrequency)*2-1;offset[size_t(c)]=value("fftGain")+weighting*std::log2(f/1000.f);}
             struct RGB{float r,g,b;};std::array<RGB,256> palette;for(int i=0;i<256;++i){float h=i/255.f;auto col=a.panel.interpolatedWith(a.left,std::min(1.f,.18f+h*.95f));if(h>.42f&&int(value("style"))!=3)col=col.interpolatedWith(a.right,std::min(1.f,(h-.42f)/.42f));palette[size_t(i)]={col.getFloatRed(),col.getFloatGreen(),col.getFloatBlue()};}
             for(int r=0;r<frame->rowCount;++r)for(int c=0;c<SpectrumFrame::columns;++c){float h=std::clamp((frame->history[size_t(r*SpectrumFrame::columns+c)]+offset[size_t(c)]-floorDb)/range,0.f,1.f);auto col=palette[size_t(juce::roundToInt(h*255))];if(listening&&(frequencies[size_t(c)]<low||frequencies[size_t(c)]>high)){col.r*=.25f;col.g*=.25f;col.b*=.25f;}vertices[size_t(r*SpectrumFrame::columns+c)]={x[size_t(c)],h,frame->ages[size_t(r)],col.r,col.g,col.b};}
-            glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(Vertex)),vertices.data(),GL_DYNAMIC_DRAW);surface->set(1.f);if(frame->rowCount>1)glDrawElements(GL_TRIANGLES,(frame->rowCount-1)*(SpectrumFrame::columns-1)*6,GL_UNSIGNED_INT,reinterpret_cast<const void*>(size_t(SpectrumFrame::rows-frame->rowCount)*(SpectrumFrame::columns-1)*6*sizeof(unsigned)));
+            glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(Vertex)),vertices.data(),GL_DYNAMIC_DRAW);surface->set(1.f);const float yr=angleYaw()*juce::MathConstants<float>::pi/180,pr=anglePitch()*juce::MathConstants<float>::pi/180;
+            const int order=(std::cos(yr)*std::cos(pr)<0?1:0)|(-std::sin(yr)*std::cos(pr)<0?2:0);
+            const size_t firstRow=size_t(order)*(SpectrumFrame::rows-1)+((order&1)?0:size_t(SpectrumFrame::rows-frame->rowCount));
+            if(frame->rowCount>1)glDrawElements(GL_TRIANGLES,(frame->rowCount-1)*(SpectrumFrame::columns-1)*6,GL_UNSIGNED_INT,reinterpret_cast<const void*>(firstRow*(SpectrumFrame::columns-1)*6*sizeof(unsigned)));
         }
         glDisable(GL_BLEND);glActiveTexture(GL_TEXTURE0);glBindVertexArray(0);glDisable(GL_DEPTH_TEST);
         auto overlay=std::atomic_load(&overlayImage);
-        if(overlay){if(overlay!=uploadedOverlay){overlayTexture.loadImage(*overlay);uploadedOverlay=overlay;}glActiveTexture(GL_TEXTURE0);overlayTexture.bind();const int w=juce::roundToInt(canvasWidth.load()*context.getRenderingScale()),h=juce::roundToInt(canvasHeight.load()*context.getRenderingScale());context.copyTexture({0,0,w,h},{0,0,w,h},w,h,false);overlayTexture.unbind();}
+        if(overlay&&value("clean")<.5f){if(overlay!=uploadedOverlay){overlayTexture.loadImage(*overlay);uploadedOverlay=overlay;}glActiveTexture(GL_TEXTURE0);overlayTexture.bind();const int w=juce::roundToInt(canvasWidth.load()*context.getRenderingScale()),h=juce::roundToInt(canvasHeight.load()*context.getRenderingScale());context.copyTexture({0,0,w,h},{0,0,w,h},w,h,false);overlayTexture.unbind();}
         ++renderCount;unsigned seq=xyCapture?unsigned(trajectory->position):frame->sequence;if(seq!=renderedSequence){renderedSequence=seq;++updatedCount;}
         if(captureRequested.exchange(false)) {
             const int w=juce::roundToInt(canvasWidth.load()*context.getRenderingScale()),h=juce::roundToInt(canvasHeight.load()*context.getRenderingScale());
@@ -196,7 +204,7 @@ public:
         auto f=analyser.snapshot();auto xy=std::atomic_load(&trajectoryFrame);bool fresh=xyCapture?xy&&unsigned(xy->position)!=lastSequence:f&&f->sequence!=lastSequence;
         if(xyCapture&&xy)lastSequence=unsigned(xy->position);if(f&&!xyCapture)lastSequence=f->sequence;
         if(threeD){
-            std::array<float,18> key{{float(getWidth()),float(getHeight()),value(yawID()),value(pitchID()),value("fftScale"),value("fftWeight"),xyCapture?value("gain"):value("fftTilt"),value("fftFloor"),value("history"),value("style"),value("colourL"),value("colourR"),ready.load()?1.f:0.f,xyCapture?(xy?1.f:0.f):(f?1.f:0.f),xyCapture?value("xy3DTime"):(f?f->maxFrequency:20000),expand?1.f:0.f,value("fftGain"),value(zoomID())}};
+            std::array<float,19> key{{float(getWidth()),float(getHeight()),angleYaw(),anglePitch(),value("fftScale"),value("fftWeight"),xyCapture?value("gain"):value("fftTilt"),value("fftFloor"),value("history"),value("style"),value("colourL"),value("colourR"),ready.load()?1.f:0.f,xyCapture?(xy?1.f:0.f):(f?1.f:0.f),xyCapture?value("xy3DTime"):(f?f->maxFrequency:20000),expand?1.f:0.f,value("fftGain"),value(zoomID()),value("clean")}};
             if(key!=overlayKey && getWidth()>0 && getHeight()>0){overlayKey=key;const float scale=std::clamp(float(getPeer()?getPeer()->getPlatformScaleFactor():1.),1.f,2.f);auto image=std::make_shared<juce::Image>(juce::Image::ARGB,juce::roundToInt(getWidth()*scale),juce::roundToInt(getHeight()*scale),true,juce::SoftwareImageType{});juce::Graphics g(*image);g.addTransform(juce::AffineTransform::scale(scale));paint(g);std::atomic_store(&overlayImage,std::shared_ptr<const juce::Image>(std::move(image)));}
             context.triggerRepaint();
         }else repaint();
@@ -218,9 +226,9 @@ public:
         auto fy=[&](float db){return box.getBottom()-box.getHeight()*(db-floorDb)/(topDb-floorDb);};
         if(!threeD) {
             ++renderCount;if(frame&&frame->sequence!=renderedSequence){renderedSequence=frame->sequence;++updatedCount;}g.fillAll(a.panel);
-            for(float db=std::ceil(value("fftFloor")/12)*12;db<=ceiling();db+=12) {g.setColour(a.grid);g.drawHorizontalLine(int(fy(db)),box.getX(),box.getRight());g.setColour(a.muted);g.drawText(juce::String(int(db)),0,int(fy(db))-7,42,14,juce::Justification::centredRight);}
+            if(value("clean")<.5f)for(float db=std::ceil(value("fftFloor")/12)*12;db<=ceiling();db+=12) {g.setColour(a.grid);g.drawHorizontalLine(int(fy(db)),box.getX(),box.getRight());g.setColour(a.muted);g.drawText(juce::String(int(db)),0,int(fy(db))-7,42,14,juce::Justification::centredRight);}
             const std::vector<float> ticks=log?std::vector<float>{20,50,100,200,500,1000,2000,5000,10000,20000}:std::vector<float>{0,2000,4000,6000,8000,10000,12000,14000,16000,18000,20000};
-            for(float f:ticks)if(f<=max) {g.setColour(a.grid);g.drawVerticalLine(int(fx(f)),box.getY(),box.getBottom());g.setColour(a.muted);g.drawText(hz(f),int(fx(f))-22,int(box.getBottom())+5,44,16,juce::Justification::centred);}
+            if(value("clean")<.5f)for(float f:ticks)if(f<=max) {g.setColour(a.grid);g.drawVerticalLine(int(fx(f)),box.getY(),box.getBottom());g.setColour(a.muted);g.drawText(hz(f),int(fx(f))-22,int(box.getBottom())+5,44,16,juce::Justification::centred);}
             if(frame) {
                 juce::Path p,peak;
                 for(int i=0;i<SpectrumFrame::bands;++i) {float f=spectrumFrequency(float(i)/(SpectrumFrame::bands-1),true,max);float d=frame->db[size_t(i)]+value("fftGain")+weighting*std::log2(f/1000.f);float pk=frame->peak[size_t(i)]+value("fftGain")+weighting*std::log2(f/1000.f);float x=fx(f),y=std::clamp(fy(d),box.getY(),box.getBottom());
@@ -230,15 +238,16 @@ public:
                 g.setColour(a.right.withAlpha(.4f));g.strokePath(peak,juce::PathStrokeType(.8f));g.setColour(a.left);g.strokePath(p,juce::PathStrokeType(value("lineWidth"),juce::PathStrokeType::curved,juce::PathStrokeType::rounded));
             }
             float lo=std::clamp(fx(std::min(value("bandLow"),value("bandHigh"))),box.getX(),box.getRight()),hi=std::clamp(fx(std::max(value("bandLow"),value("bandHigh"))),lo,box.getRight());
-            if(value("bandLow")>20.1f||value("bandHigh")<max-.1f||value("listen")>.5f) {
+            if(value("clean")<.5f&&(value("bandLow")>20.1f||value("bandHigh")<max-.1f||value("listen")>.5f)) {
                 if(value("listen")>.5f) {g.setColour(a.panel.withAlpha(.68f));g.fillRect(box.withRight(lo));g.fillRect(box.withX(hi));}
                 g.setColour(a.right.withAlpha(.13f));g.fillRect(juce::Rectangle<float>(lo,box.getY(),hi-lo,box.getHeight()));g.setColour(a.right);g.drawVerticalLine(int(lo),box.getY(),box.getBottom());g.drawVerticalLine(int(hi),box.getY(),box.getBottom());
             }
-            if(hover>=0 && frame) {float f=std::max(20.f,hover);float db=spectrumValue(frame->db,f,max)+value("fftGain")+weighting*std::log2(f/1000);int note=juce::roundToInt(69+12*std::log2(f/440));
+            if(value("clean")<.5f && hover>=0 && frame) {float f=std::max(20.f,hover);float db=spectrumValue(frame->db,f,max)+value("fftGain")+weighting*std::log2(f/1000);int note=juce::roundToInt(69+12*std::log2(f/440));
                 g.setColour(a.text);g.drawText(hz(f)+" Hz / "+juce::String(db,1)+" dB / "+juce::MidiMessage::getMidiNoteName(note,true,true,4),int(box.getX())+8,int(box.getY())+5,350,18,juce::Justification::centredLeft);}
         } else {
             if(failed.load()) {g.fillAll(a.panel);g.setColour(a.text);g.drawText("3D renderer unavailable",getLocalBounds(),juce::Justification::centred);return;}
             if(!ready.load()) {g.fillAll(a.panel);g.setColour(a.text);g.drawText("Starting 3D renderer...",getLocalBounds(),juce::Justification::centred);return;}
+            if(value("clean")>.5f)return;
             if(xyCapture){
                 g.setColour(a.muted);for(float v:{-1.f,0.f,1.f}){auto x=project(v*.4761904762f,.4f,0),y=project(0,.4f+v*.6666666667f,0);g.drawText("X "+juce::String(v/value("gain"),2),int(x.x)-22,int(x.y)+5,44,16,juce::Justification::centred);if(v!=0){auto bounds=juce::Rectangle<int>(int(y.x)+6,int(y.y)-7,64,16);g.setColour(a.panel.withAlpha(.8f));g.fillRoundedRectangle(bounds.toFloat(),3);g.setColour(a.muted);g.drawText("Y "+juce::String(v/value("gain"),2),bounds,juce::Justification::centredLeft);}}
                 for(int i=0;i<=4;++i){float age=i/4.f;auto p=project(.4761904762f,.4f,age);g.drawText(i==0?"now":"-"+juce::String(value("xy3DTime")*age,2)+" s",int(p.x)+6,int(p.y)-7,70,16,juce::Justification::centredLeft);}
@@ -251,6 +260,7 @@ public:
             for(int i=0;i<=4;++i) {float age=i/4.f;auto p=project(1,0,age);g.drawText(i==0?"now":"-"+juce::String(value("history")*age,1)+" s",int(p.x)+6,int(p.y)-7,62,16,juce::Justification::centredLeft);}
             for(int i=0;i<=3;++i) {float h=i/3.f;auto p=project(-1,h,0);g.drawText(juce::String(juce::roundToInt(value("fftFloor")+h*(ceiling()-value("fftFloor")))),int(p.x)-40,int(p.y)-7,34,16,juce::Justification::centredRight);}
         }
+        if(value("clean")>.5f)return;
         g.setColour(a.muted);g.drawText("dBFS"+juce::String(tilt()==0?"":" + "+juce::String(tilt(),1)+" dB/oct @ 1k")+(value("fftGain")==0?juce::String():" / visual gain "+juce::String(value("fftGain")>0?"+":"")+juce::String(value("fftGain"),0)+" dB"),10,4,440,18,juce::Justification::centredLeft);
         g.drawText(threeD?"Drag: rotate / wheel: zoom / Shift-drag: band / double-click: reset view":"Drag: select frequency band / double-click: clear / Esc: original audio",8,getHeight()-21,getWidth()-16,18,juce::Justification::centredLeft);
         if(!frame) {g.setColour(a.text);g.drawText("Waiting for audio...",getLocalBounds(),juce::Justification::centred);}
@@ -261,11 +271,11 @@ public:
         grabKeyboardFocus();
         if(expand && (threeD||e.position.y<24) && (e.position.y<24 || e.getNumberOfClicks()>1)){selecting=rotating=false;return;}
         dragStart=e.position;rotating=threeD&&(xyCapture||!e.mods.isShiftDown());selecting=!rotating;
-        if(rotating) {startYaw=value(yawID());startPitch=value(pitchID());for(auto* id:{yawID(),pitchID()})state.getParameter(id)->beginChangeGesture();}
+        if(rotating) {startYaw=angleYaw();startPitch=anglePitch();for(auto* id:{yawID(),pitchID()})state.getParameter(id)->beginChangeGesture();}
         else {anchor=mouseFrequency(e.position);for(auto* id:{"bandLow","bandHigh"})state.getParameter(id)->beginChangeGesture();set("bandLow",std::max(20.f,anchor*.9f));set("bandHigh",std::min(maxFrequency(),std::max(21.f,anchor*1.1f)));}
     }
     void mouseDrag(const juce::MouseEvent& e) override {
-        if(rotating) {set(yawID(),std::clamp(startYaw+(e.position.x-dragStart.x)*.15f,-32.f,32.f));set(pitchID(),std::clamp(startPitch-(e.position.y-dragStart.y)*.12f,18.f,60.f));repaint();context.triggerRepaint();}
+        if(rotating) {set(yawID(),std::remainder(startYaw+(e.position.x-dragStart.x)*.25f-value(baseYawID()),360.f));set(pitchID(),std::remainder(startPitch-(e.position.y-dragStart.y)*.25f-value(basePitchID()),360.f));repaint();context.triggerRepaint();}
         else if(selecting)select(e.position);
     }
     void mouseUp(const juce::MouseEvent&) override {if(!selecting&&!rotating)return;for(auto* id:(rotating?std::initializer_list<const char*>{yawID(),pitchID()}:std::initializer_list<const char*>{"bandLow","bandHigh"}))state.getParameter(id)->endChangeGesture();selecting=rotating=false;}
@@ -274,7 +284,7 @@ public:
         if(wheel.deltaY==0)return;auto* p=state.getParameter(zoomID());p->beginChangeGesture();
         set(zoomID(),std::clamp(value(zoomID())*std::exp(wheel.deltaY*1.5f),.5f,3.f));p->endChangeGesture();tick();
     }
-    void mouseDoubleClick(const juce::MouseEvent&) override {if(expand&&(threeD||getMouseXYRelative().y<24)){expand();return;}if(threeD) {set(yawID(),-14);set(pitchID(),35);set(zoomID(),1);}else {set("listen",0);set("bandLow",20);set("bandHigh",20000);}repaint();context.triggerRepaint();}
-    bool keyPressed(const juce::KeyPress& key) override {if(key==juce::KeyPress::escapeKey){set("listen",0);return true;}return false;}
+    void mouseDoubleClick(const juce::MouseEvent&) override {if(expand&&(threeD||getMouseXYRelative().y<24)){expand();return;}if(threeD) {set(baseYawID(),-14);set(basePitchID(),35);set(yawID(),0);set(pitchID(),0);set(zoomID(),1);}else {set("listen",0);set("bandLow",20);set("bandHigh",20000);}repaint();context.triggerRepaint();}
+    bool keyPressed(const juce::KeyPress& key) override {if(key==juce::KeyPress::escapeKey){set("listen",0);return false;}return false;}
 };
 }

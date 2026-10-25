@@ -1,6 +1,6 @@
 # FluidScope – GUI-Impressionen
 
-Echte Aufnahmen von FluidScope 0.4.5 mit synthetischen Audiosignalen. Die Bilder zeigen die tatsächliche Oberfläche; sie sind keine Design-Mockups.
+Echte Aufnahmen von FluidScope 0.4.5 und 0.4.6 mit synthetischen Audiosignalen. Die Bilder zeigen die tatsächliche Oberfläche; sie sind keine Design-Mockups.
 
 ## Vier Blicke auf denselben Klang
 
@@ -37,3 +37,11 @@ Gewichtung, Glättung und Anzeigepegel lassen sich an die Fragestellung anpassen
 ![3D-FFT mit Frequenz-, Pegel- und Zeitachse](images/history3d.png)
 
 Ein räumlicher Verlauf macht sichtbar, wie sich das Spektrum entwickelt.
+
+## Freie Perspektiven im Clean Mode (0.4.6)
+
+![3D-Spektrum aus einer freien Rück-/Unterperspektive ohne Raster und Achsen](images/depth-clean.png)
+
+![3D-Lissajous im Clean Mode aus einer frei gedrehten Perspektive](images/xy3d-clean.png)
+
+![Alle vier Ansichten ohne Raster, Skalen und Plot-Hinweise](images/quad-clean.png)

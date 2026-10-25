@@ -47,9 +47,10 @@ public:
     void paint(juce::Graphics& g)override {
         ++paints;if(painted!=generation){painted=generation;++updates;}
         auto a=appearance(int(value("style")),int(value("colourL")),int(value("colourR")));g.fillAll(a.panel);
-        for(int i=1;i<8;++i){g.setColour(a.grid);g.drawVerticalLine(getWidth()*i/8,0,float(getHeight()));g.drawHorizontalLine(getHeight()*i/8,0,float(getWidth()));}
+        if(value("clean")<.5f)for(int i=1;i<8;++i){g.setColour(a.grid);g.drawVerticalLine(getWidth()*i/8,0,float(getHeight()));g.drawHorizontalLine(getHeight()*i/8,0,float(getWidth()));}
         auto draw=[&](const juce::Path& p,const juce::Path& e,juce::Colour c){if(value("glow")>0){g.setColour(c.withAlpha(value("glow")*.01f));g.strokePath(p,juce::PathStrokeType(value("lineWidth")+2.7f));}g.setColour(c);g.strokePath(p,juce::PathStrokeType(value("lineWidth"),juce::PathStrokeType::curved));g.strokePath(e,juce::PathStrokeType(.7f));};
         draw(left,envelopeL,a.left);if(!xy)draw(right,envelopeR,a.right);
+        if(value("clean")>.5f)return;
         g.setFont(11.f);g.setColour(a.muted);g.drawText(xy?"XY / Lissajous":"Waveform / "+juce::String(capture.settings.seconds*1000,1)+" ms",10,6,getWidth()-20,16,juce::Justification::centredLeft);
         if(expand)g.drawText("double-click to expand",10,getHeight()-21,getWidth()-20,16,juce::Justification::centredRight);
     }
