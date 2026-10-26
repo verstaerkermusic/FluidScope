@@ -1,6 +1,6 @@
 # FluidScope – GUI-Impressionen
 
-Echte Aufnahmen von FluidScope 0.4.5 bis 0.4.7 mit synthetischen Audiosignalen. Die Bilder zeigen die tatsächliche Oberfläche; sie sind keine Design-Mockups.
+Echte Aufnahmen von FluidScope 0.4.5 bis 0.4.9 mit synthetischen Audiosignalen. Die Bilder zeigen die tatsächliche Oberfläche; sie sind keine Design-Mockups.
 
 ## Vier Blicke auf denselben Klang
 
@@ -51,3 +51,9 @@ Ein räumlicher Verlauf macht sichtbar, wie sich das Spektrum entwickelt.
 ![3D-FFT als Liniennetz; Clean und Wireframe sind direkt im normalen Fenster bedienbar](images/history3d-wireframe.png)
 
 ![Wireframe und Clean Mode gemeinsam im Vollbild](images/history3d-wireframe-clean.png)
+
+## App-Icon unter macOS (0.4.9)
+
+![Tatsächliche macOS-Darstellung des korrigierten App-Icons ohne weißen Rahmen](images/app-icon-macos.png)
+
+Von macOS/AppKit aus dem gebauten App-Bundle gerendert, ohne manuell zugewiesenes Finder-Icon. Das ursprüngliche Lissajous-Ribbon-PNG ist unverändert.

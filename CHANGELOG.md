@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.9
+
+- Fixed the standalone app icon's unwanted light frame on current macOS by bundling a modern icon stack with an explicit dark background matching the original artwork.
+- Kept the original Lissajous Ribbon PNG unchanged and added Icon Composer source plus a reproducible native icon-generation script.
+- Included a complete native ICNS fallback for older macOS versions.
+- Refresh the app bundle modification time after building so Finder does not keep the previous icon cache.
+- Added a macOS-rendered icon check, including verification after release-archive extraction; no manually applied Finder icon is required.
+
 ## 0.4.8
 
 - Added the selected Lissajous Ribbon macOS app icon, with icon sizes generated from a transparent PNG.

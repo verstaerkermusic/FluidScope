@@ -6,7 +6,7 @@
 
 An audio oscilloscope by **verstaerker**, built around fluid motion, stable triggering and a readable view into sound. Explore stereo waveforms, XY/Lissajous figures and spectra, then add time as a third dimension.
 
-**macOS Apple Silicon + Intel · VST3 + standalone · 0.4.8 · GPLv3 or later**
+**macOS Apple Silicon + Intel · VST3 + standalone · 0.4.9 · GPLv3 or later**
 
 [Deutsch](../README.md) · [Quick start](QUICKSTART.en.md) · [Gallery](GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
 
