@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Include `FluidScope-freigeben.command` in the macOS download: a double-click helper that verifies the installed VST3 signature and removes only its quarantine attribute, without changing global Gatekeeper settings.
+
 ## 0.4.9
 
 - Fixed the standalone app icon's unwanted light frame on current macOS by bundling a modern icon stack with an explicit dark background matching the original artwork.

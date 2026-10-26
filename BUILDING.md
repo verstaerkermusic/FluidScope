@@ -29,6 +29,12 @@ Building does not install the plugin automatically. Copy the VST3 bundle into yo
 
 An alternative JUCE tree can be supplied with `-DJUCE_PATH=/path/to/JUCE`, but the bundled snapshot is the release's reference dependency. The versioned source archive includes it so the release can be rebuilt without retrieving JUCE from another server.
 
+## Release packaging checklist
+
+- Include `scripts/FluidScope-freigeben.command` at the top level of the macOS download, alongside `FluidScope.app` and `FluidScope.vst3`, with its executable permission preserved.
+- Include the installation instructions and the changelog. Carry the `Unreleased` notes into the next version's release notes.
+- After extracting the final ZIP, verify that `FluidScope-freigeben.command` is executable and passes `bash -n`. Do not run it on the release bundles: it targets the installed plugin.
+
 ## Native display checks
 
 The integration-check executable also provides optional six-second live-rendering runs, from the build folder:

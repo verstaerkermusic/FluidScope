@@ -38,6 +38,8 @@ Requires macOS 12+ on Apple Silicon or Intel. VST3 and standalone only; no AU or
 
 ## Notes
 
+Starting with the next release, the macOS package includes `FluidScope-freigeben.command`. If quarantine blocks the installed VST3, quit your DAW, double-click this helper and restart the DAW. It verifies the signature and removes only the quarantine attribute from `FluidScope.vst3` in the user or system VST3 folder. Global Gatekeeper settings remain unchanged; a system-wide installation may require an administrator password.
+
 Band audition applies steep filters and its enabled state is saved with the project. With audition off and its short transition complete, audio is unchanged. It isolates frequency ranges, not individual instruments or stems. The standalone app analyses device inputs; desktop playback requires a suitable loopback input.
 
 Frame rate depends on the Mac, host, sample rate, time span, display size, zoom and signal. Dense figures and long histories remain more demanding. FFT analysis windows and smoothing introduce response time.
