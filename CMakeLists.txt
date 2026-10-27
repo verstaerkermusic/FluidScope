@@ -11,13 +11,13 @@ juce_add_plugin(FluidScope COMPANY_NAME "verstaerker" BUNDLE_ID "audio.tino.flui
     PLIST_TO_MERGE "<plist version=\"1.0\"><dict><key>CFBundleIconName</key><string>FluidScope</string></dict></plist>"
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT "FluidScope analyses the audio input you select. Audio stays on this Mac."
-    FORMATS VST3 Standalone IS_SYNTH FALSE NEEDS_MIDI_INPUT FALSE COPY_PLUGIN_AFTER_BUILD FALSE)
+    FORMATS VST3 AU Standalone IS_SYNTH FALSE NEEDS_MIDI_INPUT FALSE COPY_PLUGIN_AFTER_BUILD FALSE)
 # Keep the verified native ICNS fallback and modern icon stack together. The
 # compiled catalog is included so ordinary builds do not require Icon Composer.
 get_target_property(fluid_icon_path FluidScope JUCE_ICON_FILE)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/assets/FluidScope.icns" "${fluid_icon_path}" COPYONLY)
 set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/assets/Assets.car" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-foreach(fluid_bundle FluidScope_Standalone FluidScope_VST3)
+foreach(fluid_bundle FluidScope_Standalone FluidScope_VST3 FluidScope_AU)
     target_sources(${fluid_bundle} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/assets/Assets.car")
 endforeach()
 # Finder caches app icons by bundle path/mtime; refresh after resource changes.

@@ -2,7 +2,7 @@
 
 **0.4.10 · verstaerker · macOS Apple Silicon + Intel**
 
-1. Insert the VST3 on an audio track, or launch the standalone app and choose your input device. Desktop playback requires a suitable loopback input.
+1. Run **Install-FluidScope.command** from the extracted package, choose user or system-wide installation, then restart the DAW. Insert the VST3 or AU on an audio track, or launch the standalone app and choose your input device. Desktop playback requires a suitable loopback input.
 2. Start in **Oscilloscope** with Auto / Left / Rising. Set Window to the time span you want to see. Adjust trigger level, hysteresis and holdoff for a repeating waveform. Gain is display-only.
 3. **Freeze** holds the picture. **Single** waits for a triggered capture, then holds it. Persist controls afterglow.
 4. In **XY / Lissajous**, X is left. Choose right, delayed left or an internal sine for Y. A quarter-period delay is `250 / frequency_Hz` milliseconds; 100 Hz needs 2.5 ms.

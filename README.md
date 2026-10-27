@@ -6,7 +6,7 @@
 
 Ein Audio-Oszilloskop von **verstaerker**, entwickelt für eine flüssige Darstellung, stabiles Triggering und einen gut lesbaren Blick in den Klang. Wellenform, Lissajous und Spektralanalyse treffen auf räumliche Zeitverläufe, eigene Farben und eine große Vollbildansicht.
 
-**macOS Apple Silicon + Intel · VST3 + eigenständige App · Version 0.4.10 · GPLv3 oder später**
+**macOS Apple Silicon + Intel · VST3 + AU + eigenständige App · Version 0.4.10 · GPLv3 oder später**
 
 [English](docs/README.en.md) · [Kurzanleitung](docs/KURZANLEITUNG.md) · [GUI-Galerie](docs/GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
 
@@ -47,11 +47,14 @@ Daraus ist FluidScope geworden.
 1. Das macOS-Universal-Paket unter [Releases](https://github.com/verstaerkermusic/FluidScope/releases) herunterladen und entpacken.
 2. `FluidScope.vst3` nach `~/Library/Audio/Plug-Ins/VST3/` kopieren. Den Ordner bei Bedarf erstellen.
 3. Die DAW vollständig neu starten; falls nötig Plugins neu scannen. Hersteller: **verstaerker**.
-4. Für den Betrieb ohne DAW `FluidScope.app` in einen Ordner deiner Wahl kopieren und starten.
+4. Für AU-Hosts `FluidScope.component` nach `~/Library/Audio/Plug-Ins/Components/` kopieren und den Host neu starten.
+5. Für den Betrieb ohne DAW `FluidScope.app` in einen Ordner deiner Wahl kopieren und starten.
 
-Ab dem nächsten Release liegt `Authorize-FluidScope.command` dem macOS-Paket bei. Falls macOS das installierte VST3 wegen des Quarantänevermerks blockiert: DAW beenden, das Script doppelklicken und anschließend die DAW neu starten. Es prüft die Signatur und entfernt nur den Quarantänevermerk von `FluidScope.vst3` im Benutzer- oder systemweiten VST3-Ordner. Die allgemeinen Gatekeeper-Einstellungen bleiben erhalten; bei einer systemweiten Installation kann ein Administratorpasswort nötig sein.
+Das macOS-Paket enthält **Install-FluidScope.command**. Das vollständige Paket entpacken, die DAW beenden und das Script doppelklicken. Es fragt nach einer Installation für den aktuellen Benutzer (ohne Administratorpasswort) oder für alle Benutzer (mit Administratorpasswort). VST3 und AU werden geprüft und installiert, vorhandene Versionen gesichert und nur die Quarantänevermerke der FluidScope-Plugins entfernt. Die AU-Registrierung wird für den aktuellen Benutzer erneuert. Anschließend die DAW neu starten.
 
-Benötigt **macOS 12 oder neuer und einen Apple-Silicon- oder Intel-Mac**. Die VST3-Version benötigt einen passenden VST3-Host. AU und Windows-Builds sind nicht enthalten. Die 3D-Ansichten benötigen OpenGL 3.2 oder neuer. Intel wurde hier per Crossbuild und Tests unter Rosetta geprüft; ein nativer Intel-Hardwaretest steht noch aus. Die Downloads sind ad-hoc signiert und nicht notarisiert; macOS kann eine zusätzliche Freigabe verlangen.
+Für vorhandene Installationen liegt außerdem **Authorize-FluidScope.command** bei. Es prüft die Signaturen der installierten FluidScope-VST3-/AU-Dateien und entfernt deren Quarantänevermerke. Die allgemeinen Gatekeeper-Einstellungen bleiben erhalten.
+
+Benötigt **macOS 12 oder neuer und einen Apple-Silicon- oder Intel-Mac**. Die VST3-Version benötigt einen passenden VST3-Host. Eine AU-Version für kompatible Hosts ist ebenfalls enthalten; Windows-Builds sind nicht enthalten. Die 3D-Ansichten benötigen OpenGL 3.2 oder neuer. Intel wurde hier per Crossbuild und Tests unter Rosetta geprüft; ein nativer Intel-Hardwaretest steht noch aus. Die Downloads sind ad-hoc signiert und nicht notarisiert; macOS kann eine zusätzliche Freigabe verlangen.
 
 ## Gut zu wissen
 

@@ -23,18 +23,21 @@ The integration check creates a JUCE GUI and needs a normal macOS graphical logi
 Products:
 
 - `build/FluidScope_artefacts/Release/VST3/FluidScope.vst3`
+- `build/FluidScope_artefacts/Release/AU/FluidScope.component`
 - `build/FluidScope_artefacts/Release/Standalone/FluidScope.app`
 
-Building does not install the plugin automatically. Copy the VST3 bundle into your user's VST3 folder and restart the host. The build does not produce an AU.
+Building does not install the plugin automatically. Copy the VST3 bundle into your user's VST3 folder and restart the host. Copy the AU component into `~/Library/Audio/Plug-Ins/Components/` for AU hosts.
 
 An alternative JUCE tree can be supplied with `-DJUCE_PATH=/path/to/JUCE`, but the bundled snapshot is the release's reference dependency. The versioned source archive includes it so the release can be rebuilt without retrieving JUCE from another server.
 
 ## Release packaging checklist
 
 - Write release notes, changelog additions, bundled installation instructions and helper-script messages in English. Use `docs/README.en.md` and `docs/QUICKSTART.en.md` for the binary package's primary documentation.
-- Include `scripts/Authorize-FluidScope.command` at the top level of the macOS download, alongside `FluidScope.app` and `FluidScope.vst3`, with its executable permission preserved.
+- Include executable `scripts/Install-FluidScope.command` at the top level. It asks for user or system-wide installation, verifies and stages VST3/AU, backs up previous versions, removes quarantine only on these plugins and rolls back failed replacements.
+- Include `scripts/Authorize-FluidScope.command` at the top level of the macOS download, alongside `FluidScope.app`, `FluidScope.vst3` and `FluidScope.component`, with its executable permission preserved.
 - Include the installation instructions and the changelog. Carry the `Unreleased` notes into the next version's release notes.
 - After extracting the final ZIP, verify that `Authorize-FluidScope.command` is executable and passes `bash -n`. Do not run it on the release bundles: it targets the installed plugin.
+- Validate the AU with `auval -v aufx FlSc Tino -strict` on Apple Silicon and via `arch -x86_64` under Rosetta. Confirm the reported component version matches the build. Refresh stale per-user AU registration metadata when necessary.
 
 ## Native display checks
 
