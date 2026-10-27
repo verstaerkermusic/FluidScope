@@ -1,15 +1,15 @@
 #!/bin/bash
-# DAW beenden, diese Datei doppelklicken, DAW neu starten.
-# Entfernt ausschließlich den Quarantänevermerk von FluidScope.
+# Quit your DAW, double-click this file, then restart your DAW.
+# Removes only the quarantine attribute from the installed FluidScope VST3.
 set -euo pipefail
 
 finish() {
     result=$?
     if [ "$result" -ne 0 ]; then
-        printf '\nFreigabe fehlgeschlagen. Bitte die Meldung oben prüfen.\n'
+        printf '\nAuthorization failed. Please check the message above.\n'
     fi
     if [ -t 0 ]; then
-        read -r -p 'Zum Schließen Enter drücken … ' || true
+        read -r -p 'Press Enter to close … ' || true
     fi
     exit "$result"
 }
@@ -20,18 +20,18 @@ if [ ! -d "$plugin" ]; then
     plugin='/Library/Audio/Plug-Ins/VST3/FluidScope.vst3'
 fi
 if [ ! -d "$plugin" ]; then
-    printf 'FluidScope.vst3 ist nicht installiert. Bitte zuerst das Plugin installieren.\n' >&2
+    printf 'FluidScope.vst3 was not found. Please install the plugin first.\n' >&2
     exit 1
 fi
 
-printf 'Prüfe Signatur: %s\n' "$plugin"
+printf 'Verifying signature: %s\n' "$plugin"
 /usr/bin/codesign --verify --deep --strict --all-architectures "$plugin"
 
 if [ -w "$plugin" ]; then
     /usr/bin/xattr -dr com.apple.quarantine "$plugin"
 else
-    printf 'Für die systemweite Installation wird dein Administratorpasswort benötigt.\n'
+    printf 'The system-wide installation requires your administrator password.\n'
     /usr/bin/sudo /usr/bin/xattr -dr com.apple.quarantine "$plugin"
 fi
 
-printf '\nFluidScope: Quarantänevermerk entfernt. Bitte die DAW neu starten.\n'
+printf '\nFluidScope: quarantine attribute removed. Please restart your DAW.\n'

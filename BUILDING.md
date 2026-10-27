@@ -1,4 +1,4 @@
-# Building FluidScope 0.4.9
+# Building FluidScope 0.4.10
 
 ## Requirements
 
@@ -18,7 +18,7 @@ cmake --build build --config Release --parallel 6
 ctest --test-dir build --output-on-failure
 ```
 
-The integration check creates a JUCE GUI and needs a normal macOS graphical login session. The tests cover trigger alignment, overlapping capture, XY delay/sine/follower, FFT calibration/history, visual gain and zoom state, audio passthrough and band audition.
+The integration check creates a JUCE GUI and needs a normal macOS graphical login session. The tests cover trigger alignment, overlapping capture, XY delay/sine/follower, FFT calibration/history, visual gain and zoom state, audio passthrough, band audition, calibrated input meters, integrated gating, meter reset and sidebar hit targets.
 
 Products:
 
@@ -31,9 +31,10 @@ An alternative JUCE tree can be supplied with `-DJUCE_PATH=/path/to/JUCE`, but t
 
 ## Release packaging checklist
 
-- Include `scripts/FluidScope-freigeben.command` at the top level of the macOS download, alongside `FluidScope.app` and `FluidScope.vst3`, with its executable permission preserved.
+- Write release notes, changelog additions, bundled installation instructions and helper-script messages in English. Use `docs/README.en.md` and `docs/QUICKSTART.en.md` for the binary package's primary documentation.
+- Include `scripts/Authorize-FluidScope.command` at the top level of the macOS download, alongside `FluidScope.app` and `FluidScope.vst3`, with its executable permission preserved.
 - Include the installation instructions and the changelog. Carry the `Unreleased` notes into the next version's release notes.
-- After extracting the final ZIP, verify that `FluidScope-freigeben.command` is executable and passes `bash -n`. Do not run it on the release bundles: it targets the installed plugin.
+- After extracting the final ZIP, verify that `Authorize-FluidScope.command` is executable and passes `bash -n`. Do not run it on the release bundles: it targets the installed plugin.
 
 ## Native display checks
 

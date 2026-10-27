@@ -7,6 +7,7 @@
 #include "BandListen.h"
 #include "SpectrumPanel.h"
 #include "DisplayWindow.h"
+#include "MeterPanel.h"
 
 class FluidProcessor : public juce::AudioProcessor {
 public:
@@ -15,6 +16,8 @@ public:
     juce::AudioProcessorValueTreeState state;
     fluid::SpectrumAnalyser analyser;
     fluid::BandListen audition;
+    fluid::MeterAnalyser meters;
+    bool wasPlaying=false;
     static juce::AudioProcessorValueTreeState::ParameterLayout parameters() {
         juce::AudioProcessorValueTreeState::ParameterLayout p;
         auto number = [&](const char* id, const char* name, float a, float b, float initial, float skew = 1.f) {
@@ -30,7 +33,7 @@ public:
         p.add(std::make_unique<juce::AudioParameterChoice>("mode","Acquisition",juce::StringArray{"Auto","Normal","Free"},0));
         p.add(std::make_unique<juce::AudioParameterChoice>("source","Trigger source",juce::StringArray{"Left","Right","Mid"},0));
         p.add(std::make_unique<juce::AudioParameterChoice>("slope","Trigger slope",juce::StringArray{"Rising","Falling"},0));
-        p.add(std::make_unique<juce::AudioParameterChoice>("view","View",juce::StringArray{"Stereo","XY / Lissajous","FFT / Spectrum","3D / History","Quad"},0));
+        p.add(std::make_unique<juce::AudioParameterChoice>("view","View",juce::StringArray{"Oscilloscope","XY / Lissajous","FFT / Spectrum","3D / History","Quad"},0));
         number("xyDelay","XY Y delay ms",0.f,100.f,0.f,.35f);
         number("xyFreq","XY oscillator Hz",.1f,4000.f,220.f,.3f);
         number("xyPhase","XY oscillator phase",0.f,360.f,0.f);
@@ -69,11 +72,16 @@ public:
         number("xyOrbitPitch","XY orbit pitch",-180.f,180.f,0.f);
         p.add(std::make_unique<juce::AudioParameterBool>("clean","Clean display",false));
         p.add(std::make_unique<juce::AudioParameterBool>("fftWireframe","3D FFT wireframe",false));
+        p.add(std::make_unique<juce::AudioParameterBool>("meters","Show input meters",true));
+        p.add(std::make_unique<juce::AudioParameterBool>("meterAutoReset","Reset meters on playback start",false));
+        number("tpLimit","True Peak warning dBTP",-12.f,3.f,-1.f);
+        number("lufsGreen","LUFS green",-30.f,-12.f,-14.f);
+        number("lufsRed","LUFS deep red",-11.f,0.f,-8.f);
         return p;
     }
     FluidProcessor() : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true).withOutput("Output",juce::AudioChannelSet::stereo(),true)), state(*this,nullptr,"FluidScope",parameters()) {}
     const juce::String getName() const override { return "FluidScope"; }
-    void prepareToPlay(double sr,int) override { rate.store(sr);analyser.rate.store(sr);audition.prepare(sr); }
+    void prepareToPlay(double sr,int) override { rate.store(sr);analyser.rate.store(sr);audition.prepare(sr);meters.reset();wasPlaying=false; }
     void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout& b) const override {
         return b.getMainInputChannelSet() == b.getMainOutputChannelSet() && (b.getMainInputChannelSet() == juce::AudioChannelSet::stereo() || b.getMainInputChannelSet() == juce::AudioChannelSet::mono());
@@ -82,6 +90,11 @@ public:
         juce::ScopedNoDenormals noDenormals;
         if (b.getNumChannels()) {
             const auto* l=b.getReadPointer(0);const auto* r=b.getReadPointer(b.getNumChannels()>1?1:0);
+            bool playing=false;
+            if(auto* head=getPlayHead())if(auto position=head->getPosition())playing=position->getIsPlaying();
+            if(playing&&!wasPlaying&&state.getRawParameterValue("meterAutoReset")->load()>.5f)meters.reset();
+            wasPlaying=playing;
+            meters.push(l,r,b.getNumSamples(),rate.load(),std::min(2,b.getNumChannels()));
             queue.push(l,r,b.getNumSamples());analyser.push(l,r,b.getNumSamples());
             audition.process(b.getArrayOfWritePointers(),b.getNumChannels(),b.getNumSamples(),state.getRawParameterValue("listen")->load()>.5f,state.getRawParameterValue("bandLow")->load(),state.getRawParameterValue("bandHigh")->load());
         }
@@ -111,6 +124,10 @@ public:
 class FluidEditor : public juce::AudioProcessorEditor, private juce::Timer {
     FluidProcessor& proc;
     fluid::Capture capture;
+    fluid::MeterPanel meterPanel;
+    juce::ToggleButton meterToggle{"Meters"};
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> meterAttachment;
+    bool lastMeters=true;
     fluid::SpectrumPanel spectrum,depth,xyDepth;
     fluid::SignalPanel waveTile,xyTile;
     std::unique_ptr<fluid::DisplayWindow> fullScreen;
@@ -174,7 +191,7 @@ class FluidEditor : public juce::AudioProcessorEditor, private juce::Timer {
     }
     void toggleFullScreen() {
         if(fullScreen){closeFullScreen();return;}
-        fullScreen=std::make_unique<fluid::DisplayWindow>(capture,proc.analyser,proc.state,*this);getProperties().set("fullScreenOpen",true);
+        fullScreen=std::make_unique<fluid::DisplayWindow>(capture,proc.analyser,proc.state,proc.meters,*this);getProperties().set("fullScreenOpen",true);
         auto safe=juce::Component::SafePointer<FluidEditor>(this);
         fullScreen->display.frame=[safe]{if(safe){safe->lastVBlank=juce::Time::getMillisecondCounterHiRes();++safe->vblankCount;safe->updateDisplay();}};
         fullScreen->display.exit=[safe]{juce::MessageManager::callAsync([safe]{if(safe&&safe->fullScreen)safe->closeFullScreen();});};
@@ -188,13 +205,16 @@ class FluidEditor : public juce::AudioProcessorEditor, private juce::Timer {
         for(auto* c:{&combos[0],&combos[1],&combos[2],&combos[3],&xySource,&style,&fftScale,&fftSource,&fftWeight,&fftAverage}) {c->setColour(juce::ComboBox::backgroundColourId,a.panel);c->setColour(juce::ComboBox::textColourId,a.text);c->setColour(juce::ComboBox::outlineColourId,a.grid);}
         auto label=[&](auto& list){for(auto& l:list)l.setColour(juce::Label::textColourId,a.muted);};label(labels);label(xyLabels);label(styleLabels);label(fftLabels);label(bandLabels);label(fftHeaderLabels);
         for(auto* b:{&freeze,&single,&resume,&clearBand,&fullButton}) {b->setColour(juce::TextButton::buttonColourId,a.grid);b->setColour(juce::TextButton::textColourOffId,a.text);}
+        meterToggle.setColour(juce::ToggleButton::textColourId,a.text);meterToggle.setColour(juce::ToggleButton::tickColourId,a.left);
         wireframe.setColour(juce::ToggleButton::textColourId,a.text);wireframe.setColour(juce::ToggleButton::tickColourId,a.left);clean.setColour(juce::ToggleButton::textColourId,a.text);clean.setColour(juce::ToggleButton::tickColourId,a.left);xyFollow.setColour(juce::ToggleButton::textColourId,a.text);xyFollow.setColour(juce::ToggleButton::tickColourId,a.left);xy3D.setColour(juce::ToggleButton::textColourId,a.text);xy3D.setColour(juce::ToggleButton::tickColourId,a.left);xyTimeLabel.setColour(juce::Label::textColourId,a.muted);xyFadeLabel.setColour(juce::Label::textColourId,a.muted);listen.setColour(juce::ToggleButton::textColourId,a.text);listen.setColour(juce::ToggleButton::tickColourId,a.right);
         colourLeft.setColour(juce::TextButton::buttonColourId,a.left);colourLeft.setColour(juce::TextButton::textColourOffId,a.left.contrasting());colourRight.setColour(juce::TextButton::buttonColourId,a.right);colourRight.setColour(juce::TextButton::textColourOffId,a.right.contrasting());
     }
     void clearDisplay() { trace=Trace{}; phosphor=juce::Image(); lastDecay=0; replaceHistory=false; }
     void clear() { clearDisplay(); capture.resetTrigger(); seen=capture.generation; }
 public:
-    FluidEditor(FluidProcessor& p) : AudioProcessorEditor(p),proc(p),spectrum(p.analyser,p.state),depth(p.analyser,p.state),xyDepth(p.analyser,p.state,&capture),waveTile(capture,p.state,false),xyTile(capture,p.state,true) {
+    FluidEditor(FluidProcessor& p) : AudioProcessorEditor(p),proc(p),meterPanel(p.meters,p.state),spectrum(p.analyser,p.state),depth(p.analyser,p.state),xyDepth(p.analyser,p.state,&capture),waveTile(capture,p.state,false),xyTile(capture,p.state,true) {
+        addAndMakeVisible(meterPanel);addAndMakeVisible(meterToggle);
+        meterAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.state,"meters",meterToggle);
         addAndMakeVisible(wireframe);wireframeAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.state,"fftWireframe",wireframe);
         addAndMakeVisible(clean);cleanAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.state,"clean",clean);
         const char* ids[] = {"time","gain","level","hyst","hold","pre","persistence"};
@@ -213,7 +233,7 @@ public:
         }
         const char* cids[]={"view","mode","source","slope"};
         const char* cnames[]={"DISPLAY","ACQUISITION","TRIGGER SOURCE","EDGE"};
-        const juce::StringArray options[]={ {"Stereo","XY / Lissajous","FFT / Spectrum","3D / History","Quad"},{"Auto","Normal","Free"},{"Left","Right","Mid"},{"Rising","Falling"} };
+        const juce::StringArray options[]={ {"Oscilloscope","XY / Lissajous","FFT / Spectrum","3D / History","Quad"},{"Auto","Normal","Free"},{"Left","Right","Mid"},{"Rising","Falling"} };
         for(int i=0;i<4;++i) {
             addAndMakeVisible(combos[size_t(i)]); combos[size_t(i)].addItemList(options[i],1);
             ca.push_back(std::make_unique<ComboAttachment>(proc.state,cids[i],combos[size_t(i)]));
@@ -273,10 +293,14 @@ public:
     }
     void resized() override {
         const int w=getWidth();
+        const bool showMeters=value("meters")>.5f;
+        const int cw=w-(showMeters?214:0);
+        meterToggle.setBounds(w-120,53,96,24);
+        meterPanel.setVisible(showMeters&&!fullScreen);meterPanel.setBounds(cw,196,190,getHeight()-214);
         fullButton.setBounds(w-410,20,165,26);
         for(int i=0;i<4;++i) { int x=22+i*int((w-320)/4); int width=int((w-340)/4); labels[size_t(i+7)].setBounds(x,62,width,18); combos[size_t(i)].setBounds(x,82,width,28); }
         freeze.setBounds(w-290,82,82,28); single.setBounds(w-200,82,82,28); resume.setBounds(w-110,82,82,28);
-        const int cell=(w-44)/7;
+        const int cell=(cw-44)/7;
         for(int i=0;i<7;++i) { labels[size_t(i)].setBounds(22+i*cell,getHeight()-92,cell,20); sliders[size_t(i)].setBounds(22+i*cell,getHeight()-72,cell-10,54); }
         const bool fft=spectral(),xy=int(value("view"))==1;
         for(int i=1;i<4;++i){combos[size_t(i)].setVisible(!fft);labels[size_t(i+7)].setVisible(!fft);}
@@ -292,7 +316,7 @@ public:
         wireframe.setBounds(24+3*styleCell-112,123,102,22);wireframe.toFront(false);
         style.setBounds(24,148,styleCell-14,28);lineWidth.setBounds(24+styleCell,142,styleCell-14,46);
         colourLeft.setBounds(24+2*styleCell,148,(styleCell-22)/2,28);colourRight.setBounds(32+2*styleCell+(styleCell-22)/2,148,(styleCell-22)/2,28);glow.setBounds(24+3*styleCell,142,styleCell-14,46);
-        const int xyCell=(w-48)/6;
+        const int xyCell=(cw-48)/6;
         xySource.setVisible(xy);xySource.setBounds(24,221,xyCell-12,28);
         for(int i=0;i<6;++i) {xyLabels[size_t(i)].setVisible(xy);xyLabels[size_t(i)].setBounds(24+i*xyCell,196,xyCell-12,20);}
         for(int i=0;i<4;++i) {xySliders[size_t(i)].setVisible(xy);xySliders[size_t(i)].setBounds(24+(i+1)*xyCell,216,xyCell-12,48);}
@@ -301,8 +325,8 @@ public:
         const bool timeDepth=value("xy3D")>.5f;
         sliders[0].setEnabled(!(xy&&timeDepth));
         xyTimeLabel.setVisible(xy);xyFadeLabel.setVisible(xy);xyTime.setVisible(xy);xyFade.setVisible(xy);xyTime.setEnabled(timeDepth);xyFade.setEnabled(timeDepth);
-        xyTimeLabel.setBounds(200,266,250,18);xyTime.setBounds(200,284,(w-240)/2,44);xyFadeLabel.setBounds(220+(w-240)/2,266,250,18);xyFade.setBounds(220+(w-240)/2,284,(w-260)/2,44);
-        const int fftCell=(w-48)/7;
+        xyTimeLabel.setBounds(200,266,250,18);xyTime.setBounds(200,284,(cw-240)/2,44);xyFadeLabel.setBounds(220+(cw-240)/2,266,250,18);xyFade.setBounds(220+(cw-240)/2,284,(cw-260)/2,44);
+        const int fftCell=(cw-48)/7;
         for(int i=0;i<7;++i){fftLabels[size_t(i)].setVisible(fft);fftLabels[size_t(i)].setBounds(24+i*fftCell,196,fftCell-12,18);}
         fftAverage.setVisible(fft);fftAverage.setBounds(24+fftCell,220,fftCell-12,28);
         for(int i=0;i<6;++i){int cell=i==0?0:i+1;fftSliders[size_t(i)].setVisible(fft);fftSliders[size_t(i)].setBounds(24+cell*fftCell,214,fftCell-12,48);}
@@ -310,12 +334,12 @@ public:
         fftSliders[0].setVisible(fft&&!depthView);historyDecaySlider.setVisible(fft&&depthView);historyDecaySlider.setBounds(fftSliders[0].getBounds());
         fftLabels[0].setText(depthView?"3D DECAY / ms":"2D RELEASE / ms",juce::dontSendNotification);
         listen.setVisible(fft);listen.setBounds(24,280,140,28);clearBand.setVisible(fft);clearBand.setBounds(170,280,110,28);
-        for(int i=0;i<2;++i){bandSliders[size_t(i)].setVisible(fft);bandLabels[size_t(i)].setVisible(fft);bandLabels[size_t(i)].setBounds(300+i*(w-330)/2,266,(w-350)/2,16);bandSliders[size_t(i)].setBounds(300+i*(w-330)/2,282,(w-350)/2,44);}
+        for(int i=0;i<2;++i){bandSliders[size_t(i)].setVisible(fft);bandLabels[size_t(i)].setVisible(fft);bandLabels[size_t(i)].setBounds(300+i*(cw-330)/2,266,(cw-350)/2,16);bandSliders[size_t(i)].setBounds(300+i*(cw-330)/2,282,(cw-350)/2,44);}
         for(int i=0;i<7;++i){sliders[size_t(i)].setVisible(!fft||quad());labels[size_t(i)].setVisible(!fft||quad());}
         single.setEnabled(!fft);
         const int top=fft?340:xy?342:204;
         const auto previousPlot=plot;
-        plot={24,top,w-48,getHeight()-top-(fft&&!quad()?48:118)};
+        plot={24,top,cw-48,getHeight()-top-(fft&&!quad()?48:118)};
         const bool show=!fullScreen;
         spectrum.setVisible(show&&(int(value("view"))==2||quad()));depth.setVisible(show&&(int(value("view"))==3||quad()));waveTile.setVisible(show&&quad());xyTile.setVisible(show&&quad()&&!timeDepth);xyDepth.setVisible(show&&timeDepth&&(xy||quad()));xyDepth.set3D(show&&timeDepth&&(xy||quad()));
         spectrum.set3D(false);depth.set3D(show&&(int(value("view"))==3||quad()));
@@ -354,6 +378,7 @@ private:
             return;
         }
         wasVisible=true;
+        if(lastMeters!=(value("meters")>.5f)){lastMeters=value("meters")>.5f;resized();repaint();}
         const bool styleChanged=lastStyle!=int(value("style"))||lastColourL!=value("colourL")||lastColourR!=value("colourR");
         if(styleChanged){lastStyle=int(value("style"));lastColourL=value("colourL");lastColourR=value("colourR");applyTheme();phosphor=juce::Image();replaceHistory=true;repaint();}
         const float previousView=lastView;
@@ -559,7 +584,7 @@ private:
         const auto a=theme();
         g.fillAll(a.background);
         g.setColour(a.text);g.setFont(27.f);g.drawText("FluidScope",24,15,240,35,juce::Justification::centredLeft);
-        g.setFont(12.f);g.setColour(a.muted);g.drawText("verstaerker  /  WAVEFORM + PHASE EXPLORER",260,24,430,20,juce::Justification::centredLeft);
+        g.setFont(12.f);g.setColour(a.muted);g.drawText("verstaerker  /  WAVEFORM + PHASE EXPLORER",260,24,std::max(0,getWidth()-670),20,juce::Justification::centredLeft);
         bool stale=juce::Time::getMillisecondCounterHiRes()-lastData>600;
         juce::String status=value("listen")>.5f?"BAND LISTENING":frozen?"HOLD":singleArmed?"SINGLE / ARMED":spectral()?(proc.analyser.snapshot()?(stale?"NO AUDIO":"FFT LIVE"):"FFT WARMUP"):replaceHistory?"UPDATING":stale?"NO AUDIO":capture.triggered?"TRIGGERED":capture.settings.mode==1?"WAITING":"AUTO / FREE";
         g.setColour(a.left);g.drawText(status,getWidth()-220,24,196,20,juce::Justification::centredRight);
@@ -587,7 +612,7 @@ private:
             g.drawText(value("listen")>.5f?"Band audition: steep 48 dB/oct edges / analysis stays on the original input":"Original audio / select a range, then enable Listen band",24,plot.getBottom()+5,670,22,juce::Justification::centredLeft);
         } else g.drawText(int(value("view"))==1?"X LEFT / Y "+juce::String(value("xySource")>1.5f?"SINE":value("xySource")>.5f?"LEFT":"RIGHT")+" / delay "+juce::String(value("xyDelay"),3)+" ms":"L  mint    R  amber    /    "+juce::String(displayedSettings.seconds*100.,2)+" ms / div",24,plot.getBottom()+7,600,22,juce::Justification::centredLeft);
         g.drawText(juce::String(juce::roundToInt(paintFps))+" fps  /  "+juce::String(juce::roundToInt(updateRate))+" new/s  /  "+(spectral()?juce::String("FFT"):juce::String(juce::roundToInt(sweepRate))+" sweeps/s"),
-                   getWidth()-420,plot.getBottom()+7,396,22,juce::Justification::centredRight);
+                   plot.getRight()-310,plot.getBottom()+7,310,22,juce::Justification::centredRight);
         paintTotal+=juce::Time::getMillisecondCounterHiRes()-paintStart;++paintCalls;
     }
 };

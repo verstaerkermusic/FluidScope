@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-- Include `FluidScope-freigeben.command` in the macOS download: a double-click helper that verifies the installed VST3 signature and removes only its quarantine attribute, without changing global Gatekeeper settings.
+- Rename the waveform display from Stereo to Oscilloscope, keeping its saved view index unchanged.
+- Add an optional input-meter sidebar in all views and fullscreen, independent of Clean mode: L/R sample peaks and peak holds, 400-ms RMS, four-times-oversampled True Peak with a retained maximum, and momentary/short-term/gated integrated LUFS.
+- Add a saved True Peak warning threshold (default -1 dBTP), configurable LUFS colours (green at -14, deep red at -8), manual measurement reset and optional reset on playback start.
+- Keep input metering independent of visual gain, the internal sine and band audition; run its analysis on a separate worker with bounded memory.
+- Use English release information and helper-script messages.
+- Include `Authorize-FluidScope.command` in the macOS download: a double-click helper that verifies the installed VST3 signature and removes only its quarantine attribute, without changing global Gatekeeper settings.
 
 ## 0.4.9
 

@@ -1,6 +1,6 @@
 # FluidScope – Kurzanleitung
 
-**Version 0.4.9 · verstaerker · macOS Apple Silicon + Intel**
+**Version 0.4.10 · verstaerker · macOS Apple Silicon + Intel**
 
 ## 1. Loslegen
 
@@ -10,7 +10,7 @@ Die Grunddarstellung verändert das Audio nicht. Nur **Listen band** schaltet di
 
 ## 2. Wellenform stabilisieren
 
-**Stereo** wählen. Mit **Window / ms** den sichtbaren Zeitraum einstellen: wenige Millisekunden für einzelne Schwingungen, mehr Zeit für Hüllkurven und Transienten. **Gain** vergrößert ausschließlich die Wellenform-/XY-Anzeige.
+**Oscilloscope** wählen. Mit **Window / ms** den sichtbaren Zeitraum einstellen: wenige Millisekunden für einzelne Schwingungen, mehr Zeit für Hüllkurven und Transienten. **Gain** vergrößert ausschließlich die Wellenform-/XY-Anzeige.
 
 Zum Start **Auto**, **Left** und **Rising** wählen. Den Trigger Level so setzen, dass das Signal die gewählte Flanke regelmäßig überschreitet. **Hysteresis** hilft gegen kleine Störbewegungen am Triggerpunkt; **Holdoff** kann Mehrfachtrigger in komplexen Perioden reduzieren. **Pre-trigger** zeigt einen Anteil vor dem Triggerpunkt.
 

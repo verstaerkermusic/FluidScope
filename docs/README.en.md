@@ -6,7 +6,7 @@
 
 An audio oscilloscope by **verstaerker**, built around fluid motion, stable triggering and a readable view into sound. Explore stereo waveforms, XY/Lissajous figures and spectra, then add time as a third dimension.
 
-**macOS Apple Silicon + Intel · VST3 + standalone · 0.4.9 · GPLv3 or later**
+**macOS Apple Silicon + Intel · VST3 + standalone · 0.4.10 · GPLv3 or later**
 
 [Deutsch](../README.md) · [Quick start](QUICKSTART.en.md) · [Gallery](GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
 
@@ -18,7 +18,7 @@ I wanted a scope that makes movement easy to follow: modulated waveforms, transi
 
 FluidScope brings five views together:
 
-- **Stereo:** two traces, fractional-sample trigger alignment, hysteresis, holdoff, pre-trigger, Freeze, Single and phosphor persistence.
+- **Oscilloscope:** two traces, fractional-sample trigger alignment, hysteresis, holdoff, pre-trigger, Freeze, Single and phosphor persistence.
 - **XY / Lissajous:** left against right, delayed left or an internal sine. Add time as a third axis. The sine can follow the left input's envelope.
 - **FFT / Spectrum:** log/linear frequency scales, frequency smoothing, display weighting, peak trace and visual-only gain.
 - **3D / History:** 2–12 seconds of spectral history, unrestricted horizontal and vertical orbit rotation, mouse-wheel zoom and a soft rear fade.
@@ -30,6 +30,8 @@ Select and audition a frequency band. Pick a classic green, amber or monochrome 
 
 **Clean mode** hides grids, scales, axes and plot hints in every view, including Quad and full screen. Controls stay accessible.
 
+**Input meters:** an optional sidebar with L/R Peak/RMS, True Peak with an adjustable retained warning, and momentary/short-term/integrated LUFS. Adjust the gradual green-to-red loudness colours and transport reset in Settings. Available across display modes and fullscreen, independently of Clean. See [metering details](METERING.md).
+
 ## Install
 
 Download and extract the macOS Universal release. Copy `FluidScope.vst3` into `~/Library/Audio/Plug-Ins/VST3/`, then restart your DAW and rescan if needed. The manufacturer is **verstaerker**. To run without a DAW, copy and launch `FluidScope.app`.
@@ -38,7 +40,7 @@ Requires macOS 12+ on Apple Silicon or Intel. VST3 and standalone only; no AU or
 
 ## Notes
 
-Starting with the next release, the macOS package includes `FluidScope-freigeben.command`. If quarantine blocks the installed VST3, quit your DAW, double-click this helper and restart the DAW. It verifies the signature and removes only the quarantine attribute from `FluidScope.vst3` in the user or system VST3 folder. Global Gatekeeper settings remain unchanged; a system-wide installation may require an administrator password.
+Starting with the next release, the macOS package includes `Authorize-FluidScope.command`. If quarantine blocks the installed VST3, quit your DAW, double-click this helper and restart the DAW. It verifies the signature and removes only the quarantine attribute from `FluidScope.vst3` in the user or system VST3 folder. Global Gatekeeper settings remain unchanged; a system-wide installation may require an administrator password.
 
 Band audition applies steep filters and its enabled state is saved with the project. With audition off and its short transition complete, audio is unchanged. It isolates frequency ranges, not individual instruments or stems. The standalone app analyses device inputs; desktop playback requires a suitable loopback input.
 

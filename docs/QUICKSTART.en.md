@@ -1,9 +1,9 @@
 # FluidScope – Quick start
 
-**0.4.9 · verstaerker · macOS Apple Silicon + Intel**
+**0.4.10 · verstaerker · macOS Apple Silicon + Intel**
 
 1. Insert the VST3 on an audio track, or launch the standalone app and choose your input device. Desktop playback requires a suitable loopback input.
-2. Start in **Stereo** with Auto / Left / Rising. Set Window to the time span you want to see. Adjust trigger level, hysteresis and holdoff for a repeating waveform. Gain is display-only.
+2. Start in **Oscilloscope** with Auto / Left / Rising. Set Window to the time span you want to see. Adjust trigger level, hysteresis and holdoff for a repeating waveform. Gain is display-only.
 3. **Freeze** holds the picture. **Single** waits for a triggered capture, then holds it. Persist controls afterglow.
 4. In **XY / Lissajous**, X is left. Choose right, delayed left or an internal sine for Y. A quarter-period delay is `250 / frequency_Hz` milliseconds; 100 Hz needs 2.5 ms.
 5. **Internal sine** is visual-only. Follow input tracks the left/X peak envelope with immediate attack and a 120-ms release time constant. OSC Ratio 1.00 matches that envelope. Y Delay shifts both carrier and envelope.
@@ -16,6 +16,10 @@
 **Wireframe** switches the 3D FFT between a filled surface and a line mesh. Available in 3D History, Quad and full screen; combines with Clean and is saved with the project.
 
 **Clean** hides grids, scales, axes and plot hints in every view, including Quad and full screen. It changes neither audio nor captured data, and controls remain accessible.
+
+## Input meters
+
+Enable **Meters** for L/R Peak/RMS, True Peak and LUFS, including in fullscreen. **M** covers 400 ms, **S** covers 3 seconds and **I** measures the gated programme since reset. **Settings** adjusts the True Peak warning (default -1 dBTP), LUFS colour endpoints (default -14 green to -8 deep red) and optional reset on playback start. **Reset** clears measurement windows and retained maxima. Meters measure the original input and remain independent of visual gain, the internal sine, band audition and Clean mode. See [metering details](METERING.md).
 
 ## Auditioning a band
 

@@ -10,6 +10,23 @@ void check(bool b,const char* text) { if(!b){std::cerr<<text<<'\n';std::exit(1);
 int main(int argc,char** argv) {
     juce::ScopedJuceInitialiser_GUI init;
     if(argc==1)checkSpectrum();
+    if(argc==1) {
+        fluid::MeterAnalyser analyser;
+        std::vector<float> tone(192000);
+        for(size_t i=0;i<tone.size();++i)tone[i]=float(.1*std::sin(6.283185307179586*1000*i/48000));
+        analyser.push(tone.data(),tone.data(),int(tone.size()),48000,1);
+        const auto deadline=juce::Time::getMillisecondCounterHiRes()+2000;
+        while(analyser.snapshot().seconds<4 && juce::Time::getMillisecondCounterHiRes()<deadline)juce::Thread::sleep(5);
+        auto f=analyser.snapshot();check(f.seconds>=4&&std::abs(f.integrated+23)<.1,"Meter worker measures mono without duplicating its loudness");
+        analyser.reset();check(analyser.snapshot().maxTruePeak==fluid::meterSilence,"Meter reset immediately invalidates queued results");
+        analyser.push(tone.data(),tone.data(),int(tone.size()),48000,2);
+        const auto next=juce::Time::getMillisecondCounterHiRes()+2000;
+        while(analyser.snapshot().seconds<4 && juce::Time::getMillisecondCounterHiRes()<next)juce::Thread::sleep(5);
+        check(std::abs(analyser.snapshot().integrated+19.99)<.1,"Worker reset and stereo channel changes start a fresh measurement");
+        juce::Thread::sleep(400);f=analyser.snapshot();
+        check(f.truePeak==fluid::meterSilence&&f.maxTruePeak>-21&&f.integrated>-21,"Stopped-host live meters idle while maxima and integrated loudness remain");
+        check(analyser.dropped.load()==0,"Normal meter worker input is lossless");
+    }
     std::unique_ptr<juce::AudioProcessor> p(createPluginFilter());
     for(int channels:{1,2}) for(double rate:{44100.,48000.,96000.,192000.}) {
         auto layout=p->getBusesLayout();layout.inputBuses.set(0,juce::AudioChannelSet::canonicalChannelSet(channels));layout.outputBuses.set(0,juce::AudioChannelSet::canonicalChannelSet(channels));
@@ -121,7 +138,7 @@ int main(int argc,char** argv) {
         juce::MessageManager::getInstance()->runDispatchLoopUntil(9);
     }
     auto image=editor->createComponentSnapshot(editor->getLocalBounds(),true,2.f);
-    juce::File f=juce::File::getCurrentWorkingDirectory().getChildFile("FluidScope-preview.png");juce::FileOutputStream out(f);out.setPosition(0);out.truncate();juce::PNGImageFormat().writeImageToStream(image,out);
+    juce::File f=juce::File::getCurrentWorkingDirectory().getChildFile("FluidScope-preview.png");juce::FileOutputStream out(f);out.setPosition(0);out.truncate();juce::PNGImageFormat().writeImageToStream(image,out);out.flush();
     // A knob-only timebase drag must retain a real trace even if the host has
     // delivered no fresh audio since the last GUI frame.
     for(float window:{500.f,40.f,200.f,5.f,80.f,12.f}) {
@@ -162,6 +179,33 @@ int main(int argc,char** argv) {
     image=editor->createComponentSnapshot(editor->getLocalBounds(),true,1.f);
     juce::FileOutputStream fft(juce::File::getCurrentWorkingDirectory().getChildFile("FluidScope-preview-fft.png"));fft.setPosition(0);fft.truncate();juce::PNGImageFormat().writeImageToStream(image,fft);
     editor->setVisible(true);
+    check(parameter("view")->getText(0,40)=="Oscilloscope","Waveform view has a consistent descriptive name");
+    for(int width:{940,1180})for(int view=0;view<5;++view) {
+        editor->setSize(width,width==940?740:900);set("view",float(view));set("meters",1);set("clean",1);
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(30);
+        fluid::MeterPanel* panel=nullptr;juce::ToggleButton* toggle=nullptr;
+        for(int i=0;i<editor->getNumChildComponents();++i) {
+            auto* child=editor->getChildComponent(i);
+            if(auto* meter=dynamic_cast<fluid::MeterPanel*>(child))panel=meter;
+            if(auto* button=dynamic_cast<juce::ToggleButton*>(child))if(button->getButtonText()=="Meters")toggle=button;
+        }
+        check(panel&&panel->isVisible()&&panel->getHeight()>=500,"Meter sidebar fits the minimum editor and stays independent of Clean");
+        check(toggle&&editor->getComponentAt(toggle->getBounds().getCentre())==toggle,"Meter toggle has an unobstructed hit target");
+        for(int i=0;i<panel->getNumChildComponents();++i) {
+            auto* button=panel->getChildComponent(i);
+            check(panel->getLocalBounds().contains(button->getBounds()),"Meter Reset and Settings remain inside the sidebar");
+            check(panel->getComponentAt(button->getBounds().getCentre())==button,"Meter controls are clickable at minimum size");
+        }
+        for(int i=0;i<editor->getNumChildComponents();++i) {
+            auto* child=editor->getChildComponent(i);
+            if(child->isVisible()&&(dynamic_cast<fluid::SpectrumPanel*>(child)||dynamic_cast<fluid::SignalPanel*>(child)))
+                check(!child->getBounds().intersects(panel->getBounds()),"Meter sidebar never covers a plot in any display mode");
+        }
+        toggle->triggerClick();juce::MessageManager::getInstance()->runDispatchLoopUntil(50);
+        check(parameter("meters")->getValue()==0&&!panel->isVisible(),"Meter toggle hides the sidebar in the normal editor");
+        toggle->triggerClick();juce::MessageManager::getInstance()->runDispatchLoopUntil(50);
+        check(parameter("meters")->getValue()==1&&panel->isVisible(),"Meter toggle restores the sidebar");
+    }
     for(int width:{940,1180})for(int view=0;view<5;++view) {
         editor->setSize(width,900);set("view",float(view));set("clean",0);juce::MessageManager::getInstance()->runDispatchLoopUntil(25);
         for(const auto text:{juce::String("Clean"),juce::String("Wireframe")}) {
@@ -199,7 +243,7 @@ int main(int argc,char** argv) {
     check(parameter("cameraYaw")->getNormalisableRange().start==-32 && parameter("cameraPitch")->getNormalisableRange().start==18,"Legacy camera automation ranges remain unchanged");
     set("view",1);set("xy3D",0);set("clean",0);juce::MessageManager::getInstance()->runDispatchLoopUntil(35);
     auto gridCount=[&]{auto picture=editor->createComponentSnapshot(editor->getLocalBounds(),true,1.f);int n=0;auto grid=fluid::appearance(int(parameter("style")->convertFrom0to1(parameter("style")->getValue())),0x56e2c2,0xf3ac71).grid;
-        for(int y=370;y<picture.getHeight()-135;++y)for(int x=40;x<picture.getWidth()-40;++x)if(picture.getPixelAt(x,y)==grid)++n;return n;};
+        for(int y=370;y<picture.getHeight()-135;++y)for(int x=40;x<picture.getWidth()-254;++x)if(picture.getPixelAt(x,y)==grid)++n;return n;};
     const auto normalGrid=gridCount();set("clean",1);juce::MessageManager::getInstance()->runDispatchLoopUntil(25);const auto cleanGrid=gridCount();
     check(normalGrid>500 && cleanGrid<normalGrid/10,"Clean display removes the actual XY grid pixels");
     set("clean",0);
@@ -214,9 +258,13 @@ int main(int argc,char** argv) {
     juce::AudioBuffer<float> gainOriginal;gainOriginal.makeCopyOf(audio);p->processBlock(audio,midi);
     for(int ch=0;ch<2;++ch)for(int i=0;i<audio.getNumSamples();++i)check(audio.getSample(ch,i)==gainOriginal.getSample(ch,i),"FFT visual gain leaves audio bit-exact");
     set("rearFade",25);set("xy3DTime",.35f);set("historyDecay",65);set("xyZoom",1.8f);set("historyZoom",1.4f);set("clean",1);set("historyOrbitYaw",150);set("fftWireframe",1);set("xyOrbitPitch",-120);
+    set("tpLimit",-2.5f);set("lufsGreen",-18);set("lufsRed",-6);set("meterAutoReset",1);set("meters",0);
     set("style",1);set("lineWidth",2.2f);set("bandLow",55);set("bandHigh",140);set("listen",1);
-    p->getStateInformation(state);set("style",0);set("listen",0);set("fftGain",0);set("xyFollow",0);set("xyZoom",1);set("historyZoom",1);set("clean",0);set("historyOrbitYaw",0);set("xyOrbitPitch",0);set("fftWireframe",0);p->setStateInformation(state.getData(),int(state.getSize()));
+    p->getStateInformation(state);set("tpLimit",0);set("lufsGreen",-14);set("lufsRed",-8);set("meterAutoReset",0);set("meters",1);set("style",0);set("listen",0);set("fftGain",0);set("xyFollow",0);set("xyZoom",1);set("historyZoom",1);set("clean",0);set("historyOrbitYaw",0);set("xyOrbitPitch",0);set("fftWireframe",0);p->setStateInformation(state.getData(),int(state.getSize()));
     check(parameter("style")->convertFrom0to1(parameter("style")->getValue())==1 && parameter("listen")->getValue()==1,"appearance and audition state restore");check(std::abs(parameter("rearFade")->convertFrom0to1(parameter("rearFade")->getValue())-25)<.01f,"rear fade persists");check(std::abs(parameter("xy3DTime")->convertFrom0to1(parameter("xy3DTime")->getValue())-.35f)<.001f,"3D XY time persists");check(std::abs(parameter("historyDecay")->convertFrom0to1(parameter("historyDecay")->getValue())-65)<.01f,"3D visual decay persists");check(std::abs(parameter("fftGain")->convertFrom0to1(parameter("fftGain")->getValue())-24)<.01f,"FFT visual gain persists");check(parameter("xyFollow")->getValue()==1,"XY envelope-follow toggle persists");check(std::abs(parameter("xyZoom")->convertFrom0to1(parameter("xyZoom")->getValue())-1.8f)<.001f && std::abs(parameter("historyZoom")->convertFrom0to1(parameter("historyZoom")->getValue())-1.4f)<.001f,"Independent 3D zoom levels persist");check(parameter("clean")->getValue()==1 && std::abs(parameter("historyOrbitYaw")->convertFrom0to1(parameter("historyOrbitYaw")->getValue())-150)<.001f && std::abs(parameter("xyOrbitPitch")->convertFrom0to1(parameter("xyOrbitPitch")->getValue())+120)<.001f,"Clean mode and full orbit settings persist");check(parameter("fftWireframe")->getValue()==1,"Wireframe state persists");set("fftWireframe",0);set("clean",0);set("listen",0);set("fftGain",0);
+    check(std::abs(parameter("tpLimit")->convertFrom0to1(parameter("tpLimit")->getValue())+2.5f)<.001f&&parameter("meterAutoReset")->getValue()==1&&parameter("meters")->getValue()==0,"Meter threshold, transport reset and visibility survive a saved project");
+    check(std::abs(parameter("lufsGreen")->convertFrom0to1(parameter("lufsGreen")->getValue())+18)<.001f&&std::abs(parameter("lufsRed")->convertFrom0to1(parameter("lufsRed")->getValue())+6)<.001f,"LUFS colour endpoints survive a saved project");
+    set("meters",1);set("meterAutoReset",0);set("tpLimit",-1);set("lufsGreen",-14);set("lufsRed",-8);
     set("bandLow",800);set("bandHigh",1200);set("listen",1);
     std::array<double,3> sine{},cosine{};constexpr double frequencies[]={100,1000,8000};int measured=0;
     for(int block=0;block<160;++block) {
