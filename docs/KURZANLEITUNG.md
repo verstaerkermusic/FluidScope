@@ -1,6 +1,6 @@
 # FluidScope – Kurzanleitung
 
-**Version 0.4.10 · verstaerker · macOS Apple Silicon + Intel**
+**Version 0.4.11 · verstaerker · macOS Apple Silicon + Intel**
 
 ## 1. Loslegen
 

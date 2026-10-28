@@ -52,7 +52,7 @@ public:
         // A stopped DAW may stop calling processBlock entirely. Retained maxima
         // and integrated loudness remain available, while live meters go idle.
         if(juce::Time::getMillisecondCounterHiRes()-publishedAt>350) {
-            frame.peak.fill(meterSilence);frame.rms.fill(meterSilence);frame.truePeak=frame.momentary=frame.shortTerm=meterSilence;
+            frame.displayPeak.fill(meterSilence);frame.peak.fill(meterSilence);frame.rms.fill(meterSilence);frame.truePeak=frame.momentary=frame.shortTerm=meterSilence;
         }
         return frame;
     }

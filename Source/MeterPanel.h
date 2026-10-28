@@ -7,6 +7,11 @@ class MeterPanel : public juce::Component,private juce::Timer {
     juce::AudioProcessorValueTreeState& state;
     MeterFrame frame;
     std::array<float,2> animated{{meterSilence,meterSilence}};
+    std::array<float,2> animatedRms{{meterSilence,meterSilence}};
+    double lastFrame=0,lastVBlank=0,lastMeasurement=0;
+    double statsStart=0;
+    unsigned paints=0;
+    juce::VBlankAttachment displayClock;
     juce::TextButton resetButton{"Reset"},settingsButton{"Settings"};
     bool warning=false;
     float value(const char* id) const {return state.getRawParameterValue(id)->load();}
@@ -18,9 +23,24 @@ class MeterPanel : public juce::Component,private juce::Timer {
         return t<.5f?mint.interpolatedWith(yellow,t*2):yellow.interpolatedWith(deepRed,(t-.5f)*2);
     }
     void timerCallback() override {
+        if(juce::Time::getMillisecondCounterHiRes()-lastVBlank>100)updateMeters();
+    }
+    void updateMeters() {
         if(!isShowing())return;
+        const double now=juce::Time::getMillisecondCounterHiRes();
+        const double dt=lastFrame>0?std::clamp((now-lastFrame)*.001,0.,.1):1./60;lastFrame=now;
         frame=analyser.snapshot();warning=frame.maxTruePeak>value("tpLimit");
-        for(int c=0;c<2;++c)animated[size_t(c)]=std::max(frame.peak[size_t(c)],animated[size_t(c)]-1.6f);
+        if(frame.seconds<lastMeasurement){animated.fill(meterSilence);animatedRms.fill(meterSilence);}
+        lastMeasurement=frame.seconds;
+        if(statsStart==0)statsStart=now;
+        if(now-statsStart>=1000) {
+            getProperties().set("paintFps",paints*1000./(now-statsStart));paints=0;statsStart=now;
+        }
+        for(int c=0;c<2;++c) {
+            auto ch=size_t(c);animated[ch]=std::max(frame.displayPeak[ch],animated[ch]-float(48*dt));
+            float target=std::max(-66.f,frame.rms[ch]);
+            animatedRms[ch]=animatedRms[ch]<=meterSilence?target:target+(animatedRms[ch]-target)*float(std::exp(-dt/.025));
+        }
         auto a=appearance(int(value("style")),int(value("colourL")),int(value("colourR")));
         for(auto* b:{&resetButton,&settingsButton}) {
             if(b->findColour(juce::TextButton::buttonColourId)!=a.grid)b->setColour(juce::TextButton::buttonColourId,a.grid);
@@ -46,13 +66,16 @@ class MeterPanel : public juce::Component,private juce::Timer {
 public:
     MeterPanel(MeterAnalyser& a,juce::AudioProcessorValueTreeState& s):analyser(a),state(s) {
         setName("Input meters");addAndMakeVisible(resetButton);addAndMakeVisible(settingsButton);
-        resetButton.onClick=[this]{analyser.dropped.store(0);analyser.reset();frame=MeterFrame{};warning=false;animated.fill(meterSilence);repaint();};settingsButton.onClick=[this]{settings();};
+        resetButton.onClick=[this]{analyser.dropped.store(0);analyser.reset();frame=MeterFrame{};warning=false;animated.fill(meterSilence);animatedRms.fill(meterSilence);lastMeasurement=0;repaint();};settingsButton.onClick=[this]{settings();};
         resetButton.setTooltip("Reset input peak holds, True Peak maximum and integrated loudness.");
-        setTooltipForSettings();startTimerHz(30);
+        setTooltipForSettings();
+        displayClock=juce::VBlankAttachment(this,[this]{lastVBlank=juce::Time::getMillisecondCounterHiRes();updateMeters();});
+        startTimerHz(60);
     }
     void setTooltipForSettings() {settingsButton.setTooltip("True Peak threshold, LUFS colour range and transport reset.");}
     void resized() override {resetButton.setBounds(12,getHeight()-38,(getWidth()-30)/2,26);settingsButton.setBounds(18+(getWidth()-30)/2,getHeight()-38,(getWidth()-30)/2,26);}
     void paint(juce::Graphics& g) override {
+        ++paints;
         auto a=appearance(int(value("style")),int(value("colourL")),int(value("colourR")));
         g.fillAll(a.panel);g.setColour(a.grid);g.drawRect(getLocalBounds());
         int w=getWidth(),h=getHeight();
@@ -65,7 +88,7 @@ public:
             int x=frame.channels==1?w/2-18:48+c*(w-104);
             g.setColour(a.grid.withAlpha(.5f));g.fillRect(x,meterTop,16,meterHeight);
             float top=y(animated[size_t(c)]);g.setColour(a.left.withAlpha(.55f));g.fillRect(float(x),top,16.f,float(meterBottom)-top);
-            g.setColour(a.right);g.fillRect(float(x),y(frame.rms[size_t(c)]),16.f,2.f);
+            g.setColour(a.right);g.fillRect(float(x),y(animatedRms[size_t(c)]),16.f,2.f);
             g.setColour(a.text);g.fillRect(float(x),y(frame.hold[size_t(c)]),16.f,1.f);
             g.setFont(10.f);g.drawText(c==0?"L":"R",x-3,30,22,18,juce::Justification::centred);
         }

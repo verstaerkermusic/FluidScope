@@ -7,7 +7,17 @@ int main() {
     fluid::MeterDSP meter;
     for(double rate:{44100.,48000.,96000.,192000.})for(int channels:{1,2}) {
         meter.prepare(rate,channels);
-        for(int i=0;i<int(rate*4);++i){float v=float(.1*std::sin(6.283185307179586*1000*i/rate));meter.push(v,v);}
+        int publications=0,last=0;
+        for(int i=0;i<int(rate*4);++i){
+            float v=float(.1*std::sin(6.283185307179586*1000*i/rate));
+            auto previous=meter.frame().momentary;
+            if(meter.push(v,v)) {
+                ++publications;int gap=i+1-last;last=i+1;
+                check(gap>=int(std::floor(rate*.005))&&gap<=int(std::ceil(rate*.005)),"Fast meter updates stay within 5 ms across sample rates");
+            }
+            if((i+1)%int(std::round(rate*.1))!=0)check(meter.frame().momentary==previous,"Fast peak frames never accelerate LUFS updates");
+        }
+        check(publications==800,"Peak/RMS publish at 200 Hz independently of 10-Hz LUFS");
         auto frame=meter.frame();
         const double expected=-23.0+(channels==2?10*std::log10(2.):0);
         check(std::abs(frame.momentary-expected)<.08,"K-weighted 1-kHz momentary calibration across sample rates");
@@ -17,6 +27,11 @@ int main() {
         check(std::abs(frame.maxTruePeak+20)<.05,"True Peak sine calibration");
         std::cout<<rate<<" Hz / "<<channels<<" channel: M "<<frame.momentary<<", S "<<frame.shortTerm<<", I "<<frame.integrated<<", TP "<<frame.maxTruePeak<<'\n';
     }
+    meter.prepare(48000,2);
+    for(int i=0;i<19200;++i)meter.push(.25f,.25f);
+    for(int i=0;i<960;++i)meter.push(0,0);
+    check(std::abs(meter.frame().rms[0]-fluid::meterDb(.25*std::sqrt(.38/.4)))<.001,"400-ms RMS slides within a 100-ms loudness interval");
+    check(meter.frame().peak[0]==fluid::meterSilence&&meter.frame().displayPeak[0]>-12.3,"Brief transients remain visible with a short hold and smooth peak release");
     meter.prepare(48000,2);
     for(int i=0;i<48000;++i) {
         float v=float(.9*std::sin(3.141592653589793*.5*i+3.141592653589793*.25));meter.push(v,-v);

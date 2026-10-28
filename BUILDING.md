@@ -1,4 +1,4 @@
-# Building FluidScope 0.4.10
+# Building FluidScope 0.4.11
 
 ## Requirements
 
@@ -46,6 +46,7 @@ The integration-check executable also provides optional six-second live-renderin
 ```sh
 ./FluidScopeCheck_artefacts/Release/FluidScopeCheck --benchmark 120 40 xy3d full
 ./FluidScopeCheck_artefacts/Release/FluidScopeCheck --benchmark 120 500 xy
+./FluidScopeCheck_artefacts/Release/FluidScopeCheck --benchmark 120 40 meters
 ./FluidScopeCheck_artefacts/Release/FluidScopeCheck --benchmark 120 40 quad full
 ```
 

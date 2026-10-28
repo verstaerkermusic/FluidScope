@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix stepped input meters: publish Peak/RMS/True Peak every 5 ms and animate at display refresh with elapsed-time peak release and smooth RMS markers. Keep all LUFS windows, gating and 100-ms update timing unchanged.
+
 - Add a macOS Audio Unit effect alongside VST3 and standalone, targeting Apple Silicon and Intel.
 - Include an English double-click installer with a choice of user or system-wide VST3/AU installation, scoped quarantine removal, previous-version backups and rollback on failure. Refresh the current user's AU registration after installation.
 

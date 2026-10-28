@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(FluidScope VERSION 0.4.10 LANGUAGES C CXX)
+project(FluidScope VERSION 0.4.11 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 12.0)
 set(JUCE_PATH "${CMAKE_CURRENT_LIST_DIR}/vendor/JUCE" CACHE PATH "JUCE source directory")

@@ -1,6 +1,6 @@
 # FluidScope – Quick start
 
-**0.4.10 · verstaerker · macOS Apple Silicon + Intel**
+**0.4.11 · verstaerker · macOS Apple Silicon + Intel**
 
 1. Run **Install-FluidScope.command** from the extracted package, choose user or system-wide installation, then restart the DAW. Insert the VST3 or AU on an audio track, or launch the standalone app and choose your input device. Desktop playback requires a suitable loopback input.
 2. Start in **Oscilloscope** with Auto / Left / Rising. Set Window to the time span you want to see. Adjust trigger level, hysteresis and holdoff for a repeating waveform. Gain is display-only.

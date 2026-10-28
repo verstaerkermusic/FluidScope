@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <vector>
 
 namespace fluid {
 constexpr float meterSilence = -150.f;
@@ -10,6 +11,7 @@ inline float meterDb(double amplitude) { return amplitude > 1.e-8 ? float(20 * s
 inline float meterLoudness(double power) { return power > 1.e-15 ? float(-.691 + 10 * std::log10(power)) : meterSilence; }
 struct MeterFrame {
     std::array<float,2> peak{{meterSilence,meterSilence}}, rms=peak, hold=peak;
+    std::array<float,2> displayPeak{{meterSilence,meterSilence}};
     float truePeak=meterSilence, maxTruePeak=meterSilence;
     float momentary=meterSilence, shortTerm=meterSilence, integrated=meterSilence;
     double seconds=0;
@@ -17,7 +19,8 @@ struct MeterFrame {
 };
 
 // Mono/stereo BS.1770 K weighting and EBU time windows. This core has no GUI,
-// allocations or locks. The plugin runs it on a dedicated analysis worker.
+// allocations or locks while processing. Buffers are allocated at prepare.
+// The plugin runs it on a dedicated analysis worker.
 class MeterDSP {
     struct Biquad {
         double b0=1,b1=0,b2=0,a1=0,a2=0,z1=0,z2=0;
@@ -30,13 +33,18 @@ class MeterDSP {
     std::array<std::array<double,taps>,phases> fir{};
     std::array<std::array<double,taps>,2> delay{};
     std::array<double,30> energies{};
-    std::array<std::array<double,4>,2> rawEnergies{};
+    std::vector<std::array<double,2>> rmsRing;
+    std::array<double,2> rmsSum{}, envelope{};
+    std::array<int,2> envelopeHold{};
+    double peakRelease=1;
+    std::uint64_t fastSlices=0, fastNext=240;
+    size_t rmsIndex=0;
     // 0.01-LU bins retain the exact sum of block powers, bounding the error at
     // the relative gate without unbounded storage over long DAW sessions.
     std::array<double,histogramSize> sums{};
     std::array<std::uint64_t,histogramSize> counts{};
     double rate=48000, energy=0, absoluteSum=0;
-    std::array<double,2> raw{}, peak{}, tp{}, peakHold{};
+    std::array<double,2> peak{}, tp{}, peakHold{};
     double tpHold=0;
     std::uint64_t absoluteCount=0, samples=0;
     int sliceSamples=4800,inSlice=0,slices=0,delayIndex=0,channels=2;
@@ -53,15 +61,6 @@ class MeterDSP {
     }
     void completeSlice() {
         energies[size_t(slices%30)]=energy/sliceSamples;
-        for(int c=0;c<channels;++c) {
-            rawEnergies[size_t(c)][size_t(slices%4)]=raw[size_t(c)]/sliceSamples;
-            result.peak[size_t(c)]=meterDb(peak[size_t(c)]);
-            peakHold[size_t(c)]=std::max(peakHold[size_t(c)],peak[size_t(c)]);
-            result.hold[size_t(c)]=meterDb(peakHold[size_t(c)]);
-            result.rms[size_t(c)]=meterDb(std::sqrt((rawEnergies[size_t(c)][0]+rawEnergies[size_t(c)][1]+rawEnergies[size_t(c)][2]+rawEnergies[size_t(c)][3])/4));
-        }
-        double t=std::max(tp[0],tp[1]); tpHold=std::max(tpHold,t);
-        result.truePeak=meterDb(t); result.maxTruePeak=meterDb(tpHold);
         ++slices;
         double m=0,s=0;
         for(int i=0;i<std::min(slices,30);++i) {
@@ -81,7 +80,20 @@ class MeterDSP {
             result.integrated=count?meterLoudness(sum/count):meterSilence;
         }
         result.seconds=double(samples)/rate;result.channels=channels;
-        energy=0;raw.fill(0);peak.fill(0);tp.fill(0);inSlice=0;
+        energy=0;inSlice=0;
+    }
+    void completeFastSlice() {
+        for(int c=0;c<channels;++c) {
+            size_t ch=size_t(c);
+            result.peak[ch]=meterDb(peak[ch]);
+            peakHold[ch]=std::max(peakHold[ch],peak[ch]);result.hold[ch]=meterDb(peakHold[ch]);
+            result.rms[ch]=meterDb(std::sqrt(std::max(0.,rmsSum[ch])/rmsRing.size()));
+            result.displayPeak[ch]=meterDb(envelope[ch]);
+        }
+        double t=std::max(tp[0],tp[1]);tpHold=std::max(tpHold,t);
+        result.truePeak=meterDb(t);result.maxTruePeak=meterDb(tpHold);
+        result.seconds=double(samples)/rate;result.channels=channels;
+        peak.fill(0);tp.fill(0);
     }
 public:
     MeterDSP() { prepare(48000,2); }
@@ -99,19 +111,25 @@ public:
             }
             for(auto& coefficient:fir[size_t(p)])coefficient/=sum;
         }
+        rmsRing.resize(size_t(std::round(rate*.4)));
+        peakRelease=std::pow(10.,-48./(20*rate));
         reset();
     }
     void reset() {
         for(auto& f:shelf)f.z1=f.z2=0;for(auto& f:hp)f.z1=f.z2=0;
-        for(auto& d:delay)d.fill(0);for(auto& e:rawEnergies)e.fill(0);
-        energies.fill(0);sums.fill(0);counts.fill(0);raw.fill(0);peak.fill(0);tp.fill(0);peakHold.fill(0);
+        for(auto& d:delay)d.fill(0);for(auto& e:rmsRing)e.fill(0);
+        energies.fill(0);sums.fill(0);counts.fill(0);rmsSum.fill(0);envelope.fill(0);envelopeHold.fill(0);rmsIndex=0;fastSlices=0;fastNext=std::uint64_t(std::llround(rate*.005));peak.fill(0);tp.fill(0);peakHold.fill(0);
         samples=absoluteCount=0;energy=absoluteSum=tpHold=0;slices=inSlice=delayIndex=0;result=MeterFrame{};result.channels=channels;
     }
-    // Returns true every 100 ms of input audio, independently of GUI timing.
+    // Publish fast peak/RMS frames every 5 ms; LUFS/gating stays at 100 ms.
     bool push(float left,float right) {
         const double input[]={std::isfinite(left)?left:0.f,std::isfinite(right)?right:0.f};
         for(int c=0;c<channels;++c) {
-            size_t ch=size_t(c);double x=input[c];raw[ch]+=x*x;peak[ch]=std::max(peak[ch],std::abs(x));
+            size_t ch=size_t(c);double x=input[c];peak[ch]=std::max(peak[ch],std::abs(x));
+            double power=x*x;rmsSum[ch]+=power-rmsRing[rmsIndex][ch];rmsRing[rmsIndex][ch]=power;
+            if(std::abs(x)>=envelope[ch]) {envelope[ch]=std::abs(x);envelopeHold[ch]=int(rate*.015);}
+            else if(envelopeHold[ch]>0)--envelopeHold[ch];
+            else envelope[ch]*=peakRelease;
             double y=hp[ch].tick(shelf[ch].tick(x));energy+=y*y;
             delay[ch][size_t(delayIndex)]=x;tp[ch]=std::max(tp[ch],std::abs(x));
             for(int p=1;p<phases;++p) {
@@ -121,7 +139,13 @@ public:
             }
         }
         delayIndex=(delayIndex+1)%taps;++samples;
-        if(++inSlice==sliceSamples){completeSlice();return true;}return false;
+        rmsIndex=(rmsIndex+1)%rmsRing.size();
+        if(++inSlice==sliceSamples)completeSlice();
+        if(samples>=fastNext) {
+            completeFastSlice();++fastSlices;
+            fastNext=std::uint64_t(std::llround((fastSlices+1)*rate*.005));return true;
+        }
+        return false;
     }
     const MeterFrame& frame() const { return result; }
 };

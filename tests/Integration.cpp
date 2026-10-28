@@ -49,6 +49,7 @@ int main(int argc,char** argv) {
     if(argc>1 && juce::String(argv[1])=="--benchmark") {
         set("time",argc>3?juce::String(argv[3]).getFloatValue():40);set("hold",0);set("persistence",argc>2?juce::String(argv[2]).getFloatValue():120);
         const juce::String mode=argc>4?argv[4]:"scope";
+        const bool meterMotion=mode=="meters";
         if(mode=="xy") {set("view",1);set("xySource",2);set("xyFreq",330);set("xyDelay",.25f);set("xyPhase",45);}
         const bool xy3d=mode.startsWith("xy3d");const double benchRate=mode=="xy3d-stress"?192000.:48000.;p->prepareToPlay(benchRate,512);
         if(xy3d){set("view",1);set("xy3D",1);set("xyFollow",1);set("xyAmp",1);set("xy3DTime",mode=="xy3d"?.2f:2.f);set("xySource",2);set("xyFreq",220);set("xyPhase",90);}
@@ -102,7 +103,8 @@ int main(int argc,char** argv) {
                             double snare=.28*std::exp(-backbeat*35)*(double(noiseState&0xffff)/32768.-1);
                             double synth=.22*std::sin(tau*220*t+.6*std::sin(tau*3*t))+.08*std::sin(tau*660*t)*(1+.7*std::sin(tau*t));
                             audio.setSample(0,i,float(kick+snare+synth));audio.setSample(1,i,float(kick+snare+synth*.8+.06*std::sin(tau*880*t)));
-                        } else {audio.setSample(0,i,float((xy3d?(.12+.8*std::pow(.5+.5*std::sin(6.283185307179586*1.5*t),2)):.72)*std::sin(2*juce::MathConstants<double>::pi*220*t+.6*std::sin(2*juce::MathConstants<double>::pi*7*t))));audio.setSample(1,i,float(.65*std::sin(2*juce::MathConstants<double>::pi*220*t+.8)));}
+                        } else {double modulation=meterMotion?.08+.92*std::pow(.5+.5*std::sin(6.283185307179586*2*t),3):1;
+                            audio.setSample(0,i,float(modulation*(xy3d?(.12+.8*std::pow(.5+.5*std::sin(6.283185307179586*1.5*t),2)):.72)*std::sin(2*juce::MathConstants<double>::pi*220*t+.6*std::sin(2*juce::MathConstants<double>::pi*7*t))));audio.setSample(1,i,float(modulation*.65*std::sin(2*juce::MathConstants<double>::pi*220*t+.8)));}
                     }
                     p->processBlock(audio,midi);sample+=512;
                 }
@@ -125,6 +127,9 @@ int main(int argc,char** argv) {
             auto bounds=shown->getLocalArea(panel,panel->getLocalBounds());juce::Graphics g(live);g.drawImage(*image,bounds.toFloat());++gpuImages;
         }for(int i=0;i<component.getNumChildComponents();++i)composite(*component.getChildComponent(i));};
         composite(*shown);if(mode.startsWith("depth")||mode.startsWith("quad")||xy3d)check(gpuImages>0,"3D context renders and exports real GPU data");
+        if(meterMotion)for(int i=0;i<shown->getNumChildComponents();++i)if(auto* panel=dynamic_cast<fluid::MeterPanel*>(shown->getChildComponent(i))) {
+            double fps=double(panel->getProperties()["paintFps"]);std::cout<<"Meter actual paints/s: "<<fps<<'\n';check(fps>50,"Native meter animation is display-paced rather than 10/30 fps");
+        }
         juce::FileOutputStream preview(juce::File::getCurrentWorkingDirectory().getChildFile("FluidScope-live-"+mode+(full?"-full":"")+".png"));preview.setPosition(0);preview.truncate();juce::PNGImageFormat().writeImageToStream(live,preview);
         if(full){editor->keyPressed(juce::KeyPress(juce::KeyPress::F11Key));check(!bool(editor->getProperties()["fullScreenOpen"]),"fullscreen returns to host");check(window.isShowing()&&window.isAlwaysOnTop(),"host editor remains visible with its original window setting");
             editor->keyPressed(juce::KeyPress(juce::KeyPress::F11Key));auto* reopened=presentation();check(reopened&&fluid::presentationAboveOwner(*reopened,window),"fullscreen can reopen with correct ordering");
