@@ -2,6 +2,7 @@
 #include "Spectrum.h"
 #include "Appearance.h"
 #include "Trajectory.h"
+#include "BandSelection.h"
 namespace fluid {
 class SpectrumPanel : public juce::Component, private juce::OpenGLRenderer {
     SpectrumAnalyser& analyser;
@@ -9,10 +10,15 @@ class SpectrumPanel : public juce::Component, private juce::OpenGLRenderer {
     std::shared_ptr<const TrajectoryFrame> trajectoryFrame,uploadedTrajectory;
     unsigned waveTexture=0;int waveRows=0;
     juce::AudioProcessorValueTreeState& state;
+    std::atomic<const void*>* previewOwner=nullptr;
     juce::OpenGLContext context;
     bool threeD=false,selecting=false,rotating=false;
     float anchor=20,hover=-1,startYaw=0,startPitch=35;
     juce::Point<float> dragStart;
+    enum class BandDrag {create,move,low,high};
+    BandDrag bandDrag=BandDrag::create;
+    float startBandLow=20,startBandHigh=20000;
+    bool dragLogarithmic=true;
     std::atomic<int> canvasWidth{1},canvasHeight{1};
     std::atomic<bool> ready{false},failed{false};
     std::atomic<unsigned> renderCount{0},updatedCount{0};
@@ -33,6 +39,17 @@ class SpectrumPanel : public juce::Component, private juce::OpenGLRenderer {
     std::vector<Vertex> vertices;
     std::vector<unsigned> indices;
     float value(const char* id) const {return state.getRawParameterValue(id)->load();}
+    bool listening() const {return value("listen")>.5f||(previewOwner&&previewOwner->load()!=nullptr);}
+    void temporaryPreview(bool enabled) {
+        if(!previewOwner)return;
+        if(enabled)previewOwner->store(this);
+        else {const void* expected=this;previewOwner->compare_exchange_strong(expected,nullptr);}
+    }
+    void endBandGesture() {
+        temporaryPreview(false);
+        if(selecting||rotating)for(auto* id:(rotating?std::initializer_list<const char*>{yawID(),pitchID()}:std::initializer_list<const char*>{"bandLow","bandHigh"}))state.getParameter(id)->endChangeGesture();
+        selecting=rotating=false;
+    }
     void set(const char* id,float v) {auto* p=state.getParameter(id);p->setValueNotifyingHost(p->convertTo0to1(v));}
     const char* yawID()const{return xyCapture?"xyOrbitYaw":"historyOrbitYaw";}
     const char* pitchID()const{return xyCapture?"xyOrbitPitch":"historyOrbitPitch";}
@@ -46,6 +63,30 @@ class SpectrumPanel : public juce::Component, private juce::OpenGLRenderer {
     float ceiling() const {return std::ceil(std::max(6.f,tilt()*5)/6)*6;}
     float normalized(float db,float frequency) const {return std::clamp((db+value("fftGain")+tilt()*std::log2(std::max(20.f,frequency)/1000.f)-value("fftFloor"))/(ceiling()-value("fftFloor")),0.f,1.f);}
     float maxFrequency() const {auto p=analyser.snapshot();return p?p->maxFrequency:20000.f;}
+    juce::Rectangle<float> spectrumBox() const {return {48,25,float(getWidth()-68),float(getHeight()-66)};}
+    bool bandVisible() const {return value("clean")<.5f&&(value("bandLow")>20.1f||value("bandHigh")<maxFrequency()-.1f||listening());}
+    std::array<float,2> bandPixels() const {
+        auto box=spectrumBox();float maximum=maxFrequency();bool logarithmic=value("fftScale")<.5f;
+        float l=std::clamp(box.getX()+box.getWidth()*spectrumX(std::min(value("bandLow"),value("bandHigh")),logarithmic,maximum),box.getX(),box.getRight());
+        float r=std::clamp(box.getX()+box.getWidth()*spectrumX(std::max(value("bandLow"),value("bandHigh")),logarithmic,maximum),l,box.getRight());
+        return {l,r};
+    }
+    juce::Rectangle<float> bandGrip() const {
+        auto box=spectrumBox();auto edges=bandPixels();float width=std::clamp(edges[1]-edges[0]-12.f,26.f,42.f);
+        return juce::Rectangle<float>(width,24.f).withCentre({(edges[0]+edges[1])*.5f,box.getBottom()-std::min(46.f,box.getHeight()*.22f)});
+    }
+    BandDrag bandHit(juce::Point<float> p) const {
+        if(threeD||!bandVisible()||!spectrumBox().expanded(8,0).contains(p))return BandDrag::create;
+        if(bandGrip().expanded(3).contains(p))return BandDrag::move;
+        auto edges=bandPixels();float left=std::abs(p.x-edges[0]),right=std::abs(p.x-edges[1]);
+        if(std::min(left,right)<=8)return left<=right?BandDrag::low:BandDrag::high;
+        return BandDrag::create;
+    }
+    void bandCursor(juce::Point<float> p) {
+        auto hit=bandHit(p);
+        setMouseCursor(hit==BandDrag::move?juce::MouseCursor::DraggingHandCursor:
+                       hit==BandDrag::low||hit==BandDrag::high?juce::MouseCursor::LeftRightResizeCursor:juce::MouseCursor::NormalCursor);
+    }
     static juce::String hz(float f) {return f>=1000?juce::String(f/1000.f, f>=10000?0:1)+"k":juce::String(juce::roundToInt(f));}
     juce::Point<float> project(float x,float y,float age) const {
         const float yaw=angleYaw()*juce::MathConstants<float>::pi/180,pitch=anglePitch()*juce::MathConstants<float>::pi/180;
@@ -65,8 +106,18 @@ class SpectrumPanel : public juce::Component, private juce::OpenGLRenderer {
         return spectrumFrequency(x,value("fftScale")<.5f,maxFrequency());
     }
     void select(juce::Point<float> p) {
-        const float end=mouseFrequency(p);const float lo=std::max(20.f,std::min(anchor,end));
-        set("bandLow",lo);set("bandHigh",std::max(lo+1.f,std::max(anchor,end)));repaint();context.triggerRepaint();
+        const float maximum=maxFrequency(),end=mouseFrequency(p);hover=end;
+        const float minimumWidth=std::min(1.f,startBandHigh-startBandLow);
+        if(bandDrag==BandDrag::move) {
+            auto moved=shiftBand(startBandLow,startBandHigh,(p.x-dragStart.x)/std::max(1.f,spectrumBox().getWidth()),dragLogarithmic,maximum);
+            set("bandLow",moved[0]);set("bandHigh",moved[1]);
+        } else if(bandDrag==BandDrag::low)set("bandLow",std::clamp(end,20.f,std::max(20.f,startBandHigh-minimumWidth)));
+        else if(bandDrag==BandDrag::high)set("bandHigh",std::clamp(end,std::min(maximum,startBandLow+minimumWidth),maximum));
+        else {
+            const float lo=std::clamp(std::min(anchor,end),20.f,maximum-1);
+            set("bandLow",lo);set("bandHigh",std::clamp(std::max(anchor,end),lo+1,maximum));
+        }
+        repaint();context.triggerRepaint();
     }
     void newOpenGLContextCreated() override {
         using namespace juce::gl;
@@ -169,10 +220,10 @@ void main(){float alpha=(1.-smoothstep(.55,1.,abs(edge)))*(fade>.0001?1.-smooths
             glDisableVertexAttribArray(unsigned(position->attributeID));glDisableVertexAttribArray(unsigned(colour->attributeID));
             glDrawArrays(GL_LINE_STRIP,0,trajectory->points);
         } else {
-            vertices.resize(size_t(frame->rowCount)*SpectrumFrame::columns);const float weighting=tilt(),floorDb=value("fftFloor"),range=ceiling()-floorDb;const bool listening=value("listen")>.5f;
+            vertices.resize(size_t(frame->rowCount)*SpectrumFrame::columns);const float weighting=tilt(),floorDb=value("fftFloor"),range=ceiling()-floorDb;const bool isListening=listening();
             std::array<float,SpectrumFrame::columns> frequencies{},x{},offset{};for(int c=0;c<SpectrumFrame::columns;++c){float f=spectrumFrequency(float(c)/(SpectrumFrame::columns-1),true,frame->maxFrequency);frequencies[size_t(c)]=f;x[size_t(c)]=spectrumX(f,logarithmic,frame->maxFrequency)*2-1;offset[size_t(c)]=value("fftGain")+weighting*std::log2(f/1000.f);}
             struct RGB{float r,g,b;};std::array<RGB,256> palette;for(int i=0;i<256;++i){float h=i/255.f;auto col=a.panel.interpolatedWith(a.left,std::min(1.f,.18f+h*.95f));if(h>.42f&&int(value("style"))!=3)col=col.interpolatedWith(a.right,std::min(1.f,(h-.42f)/.42f));palette[size_t(i)]={col.getFloatRed(),col.getFloatGreen(),col.getFloatBlue()};}
-            for(int r=0;r<frame->rowCount;++r)for(int c=0;c<SpectrumFrame::columns;++c){float h=std::clamp((frame->history[size_t(r*SpectrumFrame::columns+c)]+offset[size_t(c)]-floorDb)/range,0.f,1.f);auto col=palette[size_t(juce::roundToInt(h*255))];if(listening&&(frequencies[size_t(c)]<low||frequencies[size_t(c)]>high)){col.r*=.25f;col.g*=.25f;col.b*=.25f;}vertices[size_t(r*SpectrumFrame::columns+c)]={x[size_t(c)],h,frame->ages[size_t(r)],col.r,col.g,col.b};}
+            for(int r=0;r<frame->rowCount;++r)for(int c=0;c<SpectrumFrame::columns;++c){float h=std::clamp((frame->history[size_t(r*SpectrumFrame::columns+c)]+offset[size_t(c)]-floorDb)/range,0.f,1.f);auto col=palette[size_t(juce::roundToInt(h*255))];if(isListening&&(frequencies[size_t(c)]<low||frequencies[size_t(c)]>high)){col.r*=.25f;col.g*=.25f;col.b*=.25f;}vertices[size_t(r*SpectrumFrame::columns+c)]={x[size_t(c)],h,frame->ages[size_t(r)],col.r,col.g,col.b};}
             glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(Vertex)),vertices.data(),GL_DYNAMIC_DRAW);const bool wire=value("fftWireframe")>.5f;surface->set(wire?3.f:1.f);if(wire)glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);const float yr=angleYaw()*juce::MathConstants<float>::pi/180,pr=anglePitch()*juce::MathConstants<float>::pi/180;
             const int order=(std::cos(yr)*std::cos(pr)<0?1:0)|(-std::sin(yr)*std::cos(pr)<0?2:0);
             const size_t firstRow=size_t(order)*(SpectrumFrame::rows-1)+((order&1)?0:size_t(SpectrumFrame::rows-frame->rowCount));
@@ -194,11 +245,11 @@ void main(){float alpha=(1.-smoothstep(.55,1.,abs(edge)))*(fade>.0001?1.-smooths
     }
 public:
     std::function<void()> expand;
-    SpectrumPanel(SpectrumAnalyser& a,juce::AudioProcessorValueTreeState& s,Capture* c=nullptr):analyser(a),xyCapture(c),state(s) {
+    SpectrumPanel(SpectrumAnalyser& a,juce::AudioProcessorValueTreeState& s,Capture* c=nullptr,std::atomic<const void*>* preview=nullptr):analyser(a),xyCapture(c),state(s),previewOwner(preview) {
         setOpaque(true);setWantsKeyboardFocus(true);context.setRenderer(this);context.setOpenGLVersionRequired(juce::OpenGLContext::openGL3_2);
         context.setComponentPaintingEnabled(false);context.setContinuousRepainting(false);
     }
-    ~SpectrumPanel() override {context.detach();context.setRenderer(nullptr);}
+    ~SpectrumPanel() override {endBandGesture();context.detach();context.setRenderer(nullptr);}
     void set3D(bool enabled) {if(enabled==threeD)return;threeD=enabled;overlayKey.fill(-1);failed.store(false);if(threeD)context.attachTo(*this);else context.detach();repaint();}
     bool tick() {
         if(xyCapture&&xyCapture->position>=2){auto previous=std::atomic_load(&trajectoryFrame);double seconds=value("xy3DTime");if(!previous||previous->position!=xyCapture->position||previous->seconds!=seconds)std::atomic_store(&trajectoryFrame,trajectory(*xyCapture,seconds));}
@@ -239,9 +290,15 @@ public:
                 g.setColour(a.right.withAlpha(.4f));g.strokePath(peak,juce::PathStrokeType(.8f));g.setColour(a.left);g.strokePath(p,juce::PathStrokeType(value("lineWidth"),juce::PathStrokeType::curved,juce::PathStrokeType::rounded));
             }
             float lo=std::clamp(fx(std::min(value("bandLow"),value("bandHigh"))),box.getX(),box.getRight()),hi=std::clamp(fx(std::max(value("bandLow"),value("bandHigh"))),lo,box.getRight());
-            if(value("clean")<.5f&&(value("bandLow")>20.1f||value("bandHigh")<max-.1f||value("listen")>.5f)) {
-                if(value("listen")>.5f) {g.setColour(a.panel.withAlpha(.68f));g.fillRect(box.withRight(lo));g.fillRect(box.withX(hi));}
+            if(value("clean")<.5f&&(value("bandLow")>20.1f||value("bandHigh")<max-.1f||listening())) {
+                if(listening()) {g.setColour(a.panel.withAlpha(.68f));g.fillRect(box.withRight(lo));g.fillRect(box.withX(hi));}
                 g.setColour(a.right.withAlpha(.13f));g.fillRect(juce::Rectangle<float>(lo,box.getY(),hi-lo,box.getHeight()));g.setColour(a.right);g.drawVerticalLine(int(lo),box.getY(),box.getBottom());g.drawVerticalLine(int(hi),box.getY(),box.getBottom());
+                for(float edge:{lo,hi})g.fillRoundedRectangle(edge-3,box.getCentreY()-12,6,24,3);
+                auto grip=bandGrip();g.setColour(a.panel.withAlpha(.9f));g.fillRoundedRectangle(grip,5);
+                g.setColour(a.left.withAlpha(selecting&&bandDrag==BandDrag::move?1.f:.8f));g.drawRoundedRectangle(grip,5,1);
+                auto centre=grip.getCentre();
+                g.drawArrow({centre,{grip.getX()+5,centre.y}},1.3f,4,4);
+                g.drawArrow({centre,{grip.getRight()-5,centre.y}},1.3f,4,4);
             }
             if(value("clean")<.5f && hover>=0 && frame) {float f=std::max(20.f,hover);float db=spectrumValue(frame->db,f,max)+value("fftGain")+weighting*std::log2(f/1000);int note=juce::roundToInt(69+12*std::log2(f/440));
                 g.setColour(a.text);g.drawText(hz(f)+" Hz / "+juce::String(db,1)+" dB / "+juce::MidiMessage::getMidiNoteName(note,true,true,4),int(box.getX())+8,int(box.getY())+5,350,18,juce::Justification::centredLeft);}
@@ -263,29 +320,46 @@ public:
         }
         if(value("clean")>.5f)return;
         g.setColour(a.muted);g.drawText("dBFS"+juce::String(tilt()==0?"":" + "+juce::String(tilt(),1)+" dB/oct @ 1k")+(value("fftGain")==0?juce::String():" / visual gain "+juce::String(value("fftGain")>0?"+":"")+juce::String(value("fftGain"),0)+" dB"),10,4,440,18,juce::Justification::centredLeft);
-        g.drawText(threeD?"Drag: rotate / wheel: zoom / Shift-drag: band / double-click: reset view":"Drag: select frequency band / double-click: clear / Esc: original audio",8,getHeight()-21,getWidth()-16,18,juce::Justification::centredLeft);
+        g.drawText(threeD?"Drag: rotate / wheel: zoom / Shift-drag: band / double-click: reset view":"Drag: select / grip: sweep / Alt+grip: preview / edges: resize / Esc: original",8,getHeight()-21,getWidth()-16,18,juce::Justification::centredLeft);
         if(!frame) {g.setColour(a.text);g.drawText("Waiting for audio...",getLocalBounds(),juce::Justification::centred);}
     }
-    void mouseMove(const juce::MouseEvent& e) override {hover=mouseFrequency(e.position);if(!threeD)repaint();}
-    void mouseExit(const juce::MouseEvent&) override {hover=-1;repaint();}
+    void mouseMove(const juce::MouseEvent& e) override {hover=mouseFrequency(e.position);bandCursor(e.position);if(!threeD)repaint();}
+    void mouseExit(const juce::MouseEvent&) override {hover=-1;if(!selecting)setMouseCursor(juce::MouseCursor::NormalCursor);repaint();}
     void mouseDown(const juce::MouseEvent& e) override {
         grabKeyboardFocus();
         if(expand && (threeD||e.position.y<24) && (e.position.y<24 || e.getNumberOfClicks()>1)){selecting=rotating=false;return;}
         dragStart=e.position;rotating=threeD&&(xyCapture||!e.mods.isShiftDown());selecting=!rotating;
         if(rotating) {startYaw=angleYaw();startPitch=anglePitch();for(auto* id:{yawID(),pitchID()})state.getParameter(id)->beginChangeGesture();}
-        else {anchor=mouseFrequency(e.position);for(auto* id:{"bandLow","bandHigh"})state.getParameter(id)->beginChangeGesture();set("bandLow",std::max(20.f,anchor*.9f));set("bandHigh",std::min(maxFrequency(),std::max(21.f,anchor*1.1f)));}
+        else {
+            bandDrag=bandHit(e.position);dragLogarithmic=value("fftScale")<.5f;
+            auto initial=shiftBand(value("bandLow"),value("bandHigh"),0,dragLogarithmic,maxFrequency());startBandLow=initial[0];startBandHigh=initial[1];
+            for(auto* id:{"bandLow","bandHigh"})state.getParameter(id)->beginChangeGesture();
+            if(bandDrag==BandDrag::create) {
+                anchor=mouseFrequency(e.position);float low=std::clamp(anchor*.9f,20.f,maxFrequency()-1);
+                set("bandLow",low);set("bandHigh",std::clamp(anchor*1.1f,low+1,maxFrequency()));
+            }
+            temporaryPreview(bandDrag==BandDrag::move&&e.mods.isAltDown());
+            bandCursor(e.position);repaint();
+        }
     }
     void mouseDrag(const juce::MouseEvent& e) override {
+        temporaryPreview(selecting&&bandDrag==BandDrag::move&&e.mods.isAltDown());
         if(rotating) {set(yawID(),std::remainder(startYaw+(e.position.x-dragStart.x)*.25f-value(baseYawID()),360.f));set(pitchID(),std::remainder(startPitch-(e.position.y-dragStart.y)*.25f-value(basePitchID()),360.f));repaint();context.triggerRepaint();}
         else if(selecting)select(e.position);
     }
-    void mouseUp(const juce::MouseEvent&) override {if(!selecting&&!rotating)return;for(auto* id:(rotating?std::initializer_list<const char*>{yawID(),pitchID()}:std::initializer_list<const char*>{"bandLow","bandHigh"}))state.getParameter(id)->endChangeGesture();selecting=rotating=false;}
+    void mouseUp(const juce::MouseEvent& e) override {endBandGesture();bandCursor(e.position);repaint();}
+    void modifierKeysChanged(const juce::ModifierKeys& mods) override {
+        temporaryPreview(selecting&&bandDrag==BandDrag::move&&mods.isAltDown());repaint();
+        juce::Component::modifierKeysChanged(mods);
+    }
+    void focusLost(juce::Component::FocusChangeType) override {endBandGesture();}
+    void visibilityChanged() override {if(!isVisible())endBandGesture();}
     void mouseWheelMove(const juce::MouseEvent& e,const juce::MouseWheelDetails& wheel)override {
         if(!threeD){juce::Component::mouseWheelMove(e,wheel);return;}
         if(wheel.deltaY==0)return;auto* p=state.getParameter(zoomID());p->beginChangeGesture();
         set(zoomID(),std::clamp(value(zoomID())*std::exp(wheel.deltaY*1.5f),.5f,3.f));p->endChangeGesture();tick();
     }
     void mouseDoubleClick(const juce::MouseEvent&) override {if(expand&&(threeD||getMouseXYRelative().y<24)){expand();return;}if(threeD) {set(baseYawID(),-14);set(basePitchID(),35);set(yawID(),0);set(pitchID(),0);set(zoomID(),1);}else {set("listen",0);set("bandLow",20);set("bandHigh",20000);}repaint();context.triggerRepaint();}
-    bool keyPressed(const juce::KeyPress& key) override {if(key==juce::KeyPress::escapeKey){set("listen",0);return false;}return false;}
+    bool keyPressed(const juce::KeyPress& key) override {if(key==juce::KeyPress::escapeKey){endBandGesture();set("listen",0);return false;}return false;}
 };
 }

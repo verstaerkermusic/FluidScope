@@ -55,7 +55,8 @@ int main(int argc,char** argv) {
         if(xy3d){set("view",1);set("xy3D",1);set("xyFollow",1);set("xyAmp",1);set("xy3DTime",mode=="xy3d"?.2f:2.f);set("xySource",2);set("xyFreq",220);set("xyPhase",90);}
         const bool longHistory=mode=="depth-long";const int durationMs=longHistory?16000:6000;
         if(longHistory){set("view",3);set("history",12);}
-        if(mode=="fft"){set("view",2);set("fftGain",12);}if(mode.startsWith("depth")&&mode!="depth-long"){set("view",3);set("history",2);set("fftGain",12);}if(mode.startsWith("quad"))set("view",4);
+        if(mode.startsWith("fft")){set("view",2);set("fftGain",12);}
+        if(mode=="fft-band"){set("bandLow",1000);set("bandHigh",3000);}if(mode.startsWith("depth")&&mode!="depth-long"){set("view",3);set("history",2);set("fftGain",12);}if(mode.startsWith("quad"))set("view",4);
         if(mode.contains("clean")){set("clean",1);set("historyOrbitYaw",130);set("historyOrbitPitch",-110);set("xyOrbitYaw",120);set("xyOrbitPitch",110);}
         if(mode.contains("wire"))set("fftWireframe",1);
         const bool full=argc>5 && juce::String(argv[5])=="full";
@@ -96,7 +97,7 @@ int main(int argc,char** argv) {
                 while(sample+512<=target) {
                     for(int i=0;i<512;++i) {
                         double t=double(sample+i)/benchRate;
-                        if(mode=="fft"||mode.startsWith("depth")||mode.startsWith("quad")) {
+                        if(mode.startsWith("fft")||mode.startsWith("depth")||mode.startsWith("quad")) {
                             constexpr double tau=6.283185307179586;double beat=std::fmod(t,.5),backbeat=std::fmod(t+.25,.5);
                             double kick=.5*std::exp(-beat*22)*std::sin(tau*(52*beat+1.3*(1-std::exp(-beat*45))));
                             noiseState^=noiseState<<13;noiseState^=noiseState>>17;noiseState^=noiseState<<5;
@@ -246,6 +247,69 @@ int main(int argc,char** argv) {
         target->mouseDoubleClick(e);check(std::abs(parameter(orbitYaw)->convertFrom0to1(parameter(orbitYaw)->getValue()))<1e-5 && std::abs(parameter(orbitPitch)->convertFrom0to1(parameter(orbitPitch)->getValue()))<1e-5,"Double click resets both orbit offsets");
     }
     check(parameter("cameraYaw")->getNormalisableRange().start==-32 && parameter("cameraPitch")->getNormalisableRange().start==18,"Legacy camera automation ranges remain unchanged");
+    for(int display:{2,4})for(int scale:{0,1})for(int listen:{0,1}) {
+        set("view",float(display));set("fftScale",float(scale));set("clean",0);set("listen",float(listen));set("bandLow",1000);set("bandHigh",3000);
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(25);
+        fluid::SpectrumPanel* target=nullptr;
+        for(int i=0;i<editor->getNumChildComponents();++i)if(auto* panel=dynamic_cast<fluid::SpectrumPanel*>(editor->getChildComponent(i)))if(panel->isVisible()){target=panel;break;}
+        check(target!=nullptr,"2D FFT band target is visible in spectrum and Quad");
+        auto val=[&](const char* id){return parameter(id)->convertFrom0to1(parameter(id)->getValue());};
+        const float width=float(target->getWidth()-68),height=float(target->getHeight()-66);
+        auto x=[&](float hz){return 48+width*fluid::spectrumX(hz,scale==0,20000);};
+        const float handleY=25+height-std::min(46.f,height*.22f);
+        auto event=[&](juce::Point<float> point,juce::ModifierKeys mods=juce::ModifierKeys{}){auto now=juce::Time::getCurrentTime();return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),point,mods,0,0,0,0,0,target,target,now,point,now,1,false);};
+        auto drag=[&](juce::Point<float> from,juce::Point<float> to){auto e=event(from);target->mouseDown(e);target->mouseDrag(e.withNewPosition(to));target->mouseUp(e.withNewPosition(to));};
+        juce::Point<float> grip{(x(1000)+x(3000))*.5f,handleY};auto press=event(grip);
+        target->mouseDown(press);check(std::abs(val("bandLow")-1000)<.01&&std::abs(val("bandHigh")-3000)<.01,"Grabbing an existing band does not recreate or jump its endpoints");
+        target->mouseDrag(press.withNewPosition(grip+juce::Point<float>{width*.08f,0}));target->mouseUp(press);
+        check(val("bandLow")>1000&&val("bandHigh")>3000,"Centre grip sweeps the selected band upward");
+        check(scale==0?std::abs(val("bandHigh")/val("bandLow")-3)<.001:std::abs(val("bandHigh")-val("bandLow")-2000)<.1,"GUI band sweep retains its width in the active scale");
+        check(val("listen")==float(listen),"Moving a band preserves the explicit audition state");
+        for(float beyond:{-100000.f,100000.f}) {
+            set("bandLow",1000);set("bandHigh",3000);drag(grip,{beyond,handleY});
+            check(val("bandLow")>=19.99&&val("bandHigh")<=20000.01,"Dragging beyond the canvas clamps the whole band");
+            check(scale==0?std::abs(val("bandHigh")/val("bandLow")-3)<.001:std::abs(val("bandHigh")-val("bandLow")-2000)<.1,"Band width survives a GUI drag to either frequency limit");
+        }
+        set("bandLow",1000);set("bandHigh",3000);
+        drag({x(1000),25+height*.5f},{x(500),25+height*.5f});
+        check(std::abs(val("bandLow")-500)<1&&std::abs(val("bandHigh")-3000)<.1,"Left edge handle adjusts only the lower frequency");
+        drag({x(3000),25+height*.5f},{x(4000),25+height*.5f});
+        check(std::abs(val("bandLow")-500)<1&&std::abs(val("bandHigh")-4000)<1,"Right edge handle adjusts only the upper frequency");
+        if(display==2&&scale==0&&listen==0) {
+            set("bandLow",1000);set("bandHigh",3000);set("listen",0);
+            auto alt=event(grip,juce::ModifierKeys(juce::ModifierKeys::altModifier|juce::ModifierKeys::leftButtonModifier));
+            int phase=0;
+            auto outsideBandRms=[&]{
+                double power=0;juce::AudioBuffer<float> b(2,256);
+                for(int block=0;block<80;++block) {
+                    for(int i=0;i<256;++i){float sample=float(.2*std::sin(6.283185307179586*200*(phase++)/48000));b.setSample(0,i,sample);b.setSample(1,i,sample);}
+                    p->processBlock(b,midi);
+                    if(block>=64)for(int i=0;i<256;++i)power+=b.getSample(0,i)*b.getSample(0,i);
+                }
+                return std::sqrt(power/(16*256));
+            };
+            target->mouseDown(alt);
+            check(val("listen")==0,"Alt preview never writes the persistent Listen parameter");
+            check(outsideBandRms()<.005,"Alt plus centre grip actually auditions the selected band");
+            juce::MemoryBlock previewState;p->getStateInformation(previewState);
+            target->mouseUp(alt);
+            check(outsideBandRms()>.13,"Mouse release restores original audio after momentary preview");
+            p->setStateInformation(previewState.getData(),int(previewState.getSize()));
+            check(val("listen")==0&&outsideBandRms()>.13,"Saving during Alt preview never restores a latched audition");
+            target->mouseDown(alt);target->modifierKeysChanged(juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier));
+            check(outsideBandRms()>.13,"Releasing Alt ends preview even while the mouse remains held");target->mouseUp(alt);
+            target->mouseDown(alt);target->focusLost(juce::Component::focusChangedDirectly);
+            check(outsideBandRms()>.13,"Focus loss cannot leave momentary band audition latched");target->mouseUp(alt);
+            target->mouseDown(alt);target->setVisible(false);target->setVisible(true);
+            check(outsideBandRms()>.13,"Changing or hiding the view cancels momentary audition");target->mouseUp(alt);
+        }
+        if(listen==1) {
+            set("bandLow",1000);set("bandHigh",3000);
+            auto alt=event(grip,juce::ModifierKeys(juce::ModifierKeys::altModifier|juce::ModifierKeys::leftButtonModifier));
+            target->mouseDown(alt);target->mouseUp(alt);check(val("listen")==1,"Alt preview preserves an already enabled manual audition");
+        }
+    }
+    set("listen",0);set("fftScale",0);
     set("view",1);set("xy3D",0);set("clean",0);juce::MessageManager::getInstance()->runDispatchLoopUntil(35);
     auto gridCount=[&]{auto picture=editor->createComponentSnapshot(editor->getLocalBounds(),true,1.f);int n=0;auto grid=fluid::appearance(int(parameter("style")->convertFrom0to1(parameter("style")->getValue())),0x56e2c2,0xf3ac71).grid;
         for(int y=370;y<picture.getHeight()-135;++y)for(int x=40;x<picture.getWidth()-254;++x)if(picture.getPixelAt(x,y)==grid)++n;return n;};

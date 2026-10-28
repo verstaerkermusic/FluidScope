@@ -1,6 +1,6 @@
 # Notices and source availability
 
-FluidScope 0.4.11 — verstaerker
+FluidScope 0.4.12 — verstaerker
 
 FluidScope's new implementation is licensed under the GNU General Public License, version 3 or (at your option) any later version. See LICENSE.
 SPDX-License-Identifier: GPL-3.0-or-later
@@ -15,7 +15,7 @@ JUCE 7.0.10, copyright Raw Material Software Limited, is used under GPLv3. Its s
 
 ## Corresponding source
 
-The repository and the FluidScope-0.4.11-source.zip release asset include FluidScope sources, tests, CMake build definitions and the exact JUCE snapshot used by this release. No JUCE submodule checkout is required. Build instructions are in BUILDING.md. Source and binaries are provided together at https://github.com/verstaerkermusic/FluidScope/releases/tag/v0.4.11 once published.
+The repository and the FluidScope-0.4.12-source.zip release asset include FluidScope sources, tests, CMake build definitions and the exact JUCE snapshot used by this release. No JUCE submodule checkout is required. Build instructions are in BUILDING.md. Source and binaries are provided together at https://github.com/verstaerkermusic/FluidScope/releases/tag/v0.4.12 once published.
 
 Legacy bundle/four-character plugin identifiers are retained so existing DAW sessions continue to recognise the plugin; the displayed manufacturer is verstaerker.
 

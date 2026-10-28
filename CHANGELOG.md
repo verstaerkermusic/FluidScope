@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add a centre grip for sweeping the selected 2D FFT band, plus left/right edge handles for resizing. Keep octave width on logarithmic axes and Hz width on linear axes, including at frequency bounds. Works in the editor, Quad and fullscreen; ordinary dragging preserves the manual Listen band state. Alt/Option plus the centre grip temporarily auditions the band until the key or mouse is released, without writing or saving the manual Listen parameter.
+
 ## 0.4.11 — 2026-10-28
 
 - Fix stepped input meters: publish Peak/RMS/True Peak every 5 ms and animate at display refresh with elapsed-time peak release and smooth RMS markers. Keep all LUFS windows, gating and 100-ms update timing unchanged.

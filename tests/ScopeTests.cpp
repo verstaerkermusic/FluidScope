@@ -3,10 +3,19 @@
 #include "../Source/BandListen.h"
 #include "../Source/Trajectory.h"
 #include "../Source/TraceReduction.h"
+#include "../Source/BandSelection.h"
 #include <iostream>
 #include <cstdlib>
 void check(bool ok,const char* text) { if(!ok) {std::cerr<<text<<'\n';std::exit(1);} }
 int main() {
+    for(bool logarithmic:{false,true})for(float delta:{-100.f,-.1f,0.f,.1f,100.f}) {
+        auto moved=fluid::shiftBand(1000,3000,delta,logarithmic,20000);
+        check(moved[0]>=19.999f&&moved[1]<=20000.01f,"Shifted band stays inside the supported spectrum");
+        check(logarithmic?std::abs(moved[1]/moved[0]-3)<1e-5:std::abs(moved[1]-moved[0]-2000)<.01f,"Band sweep preserves octave or Hz width, including at the bounds");
+    }
+    auto narrow=fluid::shiftBand(1000,1001,-100,true,20000);
+    auto regrab=fluid::shiftBand(narrow[0],narrow[1],0,true,20000);
+    check(std::abs(regrab[0]-narrow[0])<1e-6&&std::abs(regrab[1]-narrow[1])<1e-6,"Regrabbing a narrow logarithmic band never widens it");
     fluid::Capture c; c.settings.rate=48000;c.settings.seconds=.01;c.settings.holdoff=.001;c.settings.mode=1;
     double maxError=0;unsigned frames=0;
     for(int i=0;i<48000;++i) {

@@ -18,6 +18,7 @@ public:
     fluid::BandListen audition;
     fluid::MeterAnalyser meters;
     bool wasPlaying=false;
+    std::atomic<const void*> previewOwner{nullptr};
     static juce::AudioProcessorValueTreeState::ParameterLayout parameters() {
         juce::AudioProcessorValueTreeState::ParameterLayout p;
         auto number = [&](const char* id, const char* name, float a, float b, float initial, float skew = 1.f) {
@@ -96,7 +97,7 @@ public:
             wasPlaying=playing;
             meters.push(l,r,b.getNumSamples(),rate.load(),std::min(2,b.getNumChannels()));
             queue.push(l,r,b.getNumSamples());analyser.push(l,r,b.getNumSamples());
-            audition.process(b.getArrayOfWritePointers(),b.getNumChannels(),b.getNumSamples(),state.getRawParameterValue("listen")->load()>.5f,state.getRawParameterValue("bandLow")->load(),state.getRawParameterValue("bandHigh")->load());
+            audition.process(b.getArrayOfWritePointers(),b.getNumChannels(),b.getNumSamples(),(state.getRawParameterValue("listen")->load()>.5f||previewOwner.load()!=nullptr),state.getRawParameterValue("bandLow")->load(),state.getRawParameterValue("bandHigh")->load());
         }
     }
     bool acceptsMidi() const override { return false; }
@@ -127,7 +128,7 @@ class FluidEditor : public juce::AudioProcessorEditor, private juce::Timer {
     fluid::MeterPanel meterPanel;
     juce::ToggleButton meterToggle{"Meters"};
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> meterAttachment;
-    bool lastMeters=true;
+    bool lastMeters=true,lastPreview=false;
     fluid::SpectrumPanel spectrum,depth,xyDepth;
     fluid::SignalPanel waveTile,xyTile;
     std::unique_ptr<fluid::DisplayWindow> fullScreen;
@@ -191,7 +192,7 @@ class FluidEditor : public juce::AudioProcessorEditor, private juce::Timer {
     }
     void toggleFullScreen() {
         if(fullScreen){closeFullScreen();return;}
-        fullScreen=std::make_unique<fluid::DisplayWindow>(capture,proc.analyser,proc.state,proc.meters,*this);getProperties().set("fullScreenOpen",true);
+        fullScreen=std::make_unique<fluid::DisplayWindow>(capture,proc.analyser,proc.state,proc.meters,proc.previewOwner,*this);getProperties().set("fullScreenOpen",true);
         auto safe=juce::Component::SafePointer<FluidEditor>(this);
         fullScreen->display.frame=[safe]{if(safe){safe->lastVBlank=juce::Time::getMillisecondCounterHiRes();++safe->vblankCount;safe->updateDisplay();}};
         fullScreen->display.exit=[safe]{juce::MessageManager::callAsync([safe]{if(safe&&safe->fullScreen)safe->closeFullScreen();});};
@@ -212,7 +213,7 @@ class FluidEditor : public juce::AudioProcessorEditor, private juce::Timer {
     void clearDisplay() { trace=Trace{}; phosphor=juce::Image(); lastDecay=0; replaceHistory=false; }
     void clear() { clearDisplay(); capture.resetTrigger(); seen=capture.generation; }
 public:
-    FluidEditor(FluidProcessor& p) : AudioProcessorEditor(p),proc(p),meterPanel(p.meters,p.state),spectrum(p.analyser,p.state),depth(p.analyser,p.state),xyDepth(p.analyser,p.state,&capture),waveTile(capture,p.state,false),xyTile(capture,p.state,true) {
+    FluidEditor(FluidProcessor& p) : AudioProcessorEditor(p),proc(p),meterPanel(p.meters,p.state),spectrum(p.analyser,p.state,nullptr,&p.previewOwner),depth(p.analyser,p.state,nullptr,&p.previewOwner),xyDepth(p.analyser,p.state,&capture,&p.previewOwner),waveTile(capture,p.state,false),xyTile(capture,p.state,true) {
         addAndMakeVisible(meterPanel);addAndMakeVisible(meterToggle);
         meterAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.state,"meters",meterToggle);
         addAndMakeVisible(wireframe);wireframeAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.state,"fftWireframe",wireframe);
@@ -289,7 +290,7 @@ public:
     ~FluidEditor() override { stopTimer();fullScreen.reset();proc.analyser.requested.store(false); }
     bool keyPressed(const juce::KeyPress& key)override {
         if(key==juce::KeyPress::F11Key){toggleFullScreen();return true;}
-        if(key==juce::KeyPress::escapeKey){set("listen",0);if(fullScreen)toggleFullScreen();return true;}return false;
+        if(key==juce::KeyPress::escapeKey){proc.previewOwner.store(nullptr);set("listen",0);if(fullScreen)toggleFullScreen();return true;}return false;
     }
     void resized() override {
         const int w=getWidth();
@@ -378,6 +379,7 @@ private:
             return;
         }
         wasVisible=true;
+        if(lastPreview!=(proc.previewOwner.load()!=nullptr)){lastPreview=proc.previewOwner.load()!=nullptr;repaint();}
         if(lastMeters!=(value("meters")>.5f)){lastMeters=value("meters")>.5f;resized();repaint();}
         const bool styleChanged=lastStyle!=int(value("style"))||lastColourL!=value("colourL")||lastColourR!=value("colourR");
         if(styleChanged){lastStyle=int(value("style"));lastColourL=value("colourL");lastColourR=value("colourR");applyTheme();phosphor=juce::Image();replaceHistory=true;repaint();}
@@ -399,7 +401,7 @@ private:
             const auto frames=fullScreen?fullScreen->display.takePaints():int(value("view"))==3||quad()?depth.takePaints():spectrum.takePaints();paintCount+=frames;
             if(statsStart==0)statsStart=now;
             if(!quad() && now-statsStart>=1000){const double factor=1000/(now-statsStart);paintFps=std::min(paintCount,vblankCount?vblankCount:paintCount)*factor;updateRate=std::min(updateCount*factor,paintFps);getProperties().set("paintFps",paintFps);getProperties().set("updatesPerSecond",updateRate);getProperties().set("spectrumGraphicsReady",depth.graphicsReady());paintCount=updateCount=vblankCount=0;statsStart=now;repaint(0,12,getWidth(),42);repaint(0,plot.getBottom(),getWidth(),42);}
-            listen.setButtonText(value("listen")>.5f?"LISTENING":"Listen band");if(!quad())return;
+            listen.setButtonText(proc.previewOwner.load()!=nullptr?"ALT PREVIEW":value("listen")>.5f?"LISTENING":"Listen band");if(!quad())return;
         }
         if(viewChangedEarly && (previousView==2||previousView==3)){capture.resetTrigger();seen=capture.generation;replaceHistory=true;}
         auto old=capture.settings;
@@ -586,7 +588,7 @@ private:
         g.setColour(a.text);g.setFont(27.f);g.drawText("FluidScope",24,15,240,35,juce::Justification::centredLeft);
         g.setFont(12.f);g.setColour(a.muted);g.drawText("verstaerker  /  WAVEFORM + PHASE EXPLORER",260,24,std::max(0,getWidth()-670),20,juce::Justification::centredLeft);
         bool stale=juce::Time::getMillisecondCounterHiRes()-lastData>600;
-        juce::String status=value("listen")>.5f?"BAND LISTENING":frozen?"HOLD":singleArmed?"SINGLE / ARMED":spectral()?(proc.analyser.snapshot()?(stale?"NO AUDIO":"FFT LIVE"):"FFT WARMUP"):replaceHistory?"UPDATING":stale?"NO AUDIO":capture.triggered?"TRIGGERED":capture.settings.mode==1?"WAITING":"AUTO / FREE";
+        juce::String status=proc.previewOwner.load()!=nullptr?"ALT BAND PREVIEW":value("listen")>.5f?"BAND LISTENING":frozen?"HOLD":singleArmed?"SINGLE / ARMED":spectral()?(proc.analyser.snapshot()?(stale?"NO AUDIO":"FFT LIVE"):"FFT WARMUP"):replaceHistory?"UPDATING":stale?"NO AUDIO":capture.triggered?"TRIGGERED":capture.settings.mode==1?"WAITING":"AUTO / FREE";
         g.setColour(a.left);g.drawText(status,getWidth()-220,24,196,20,juce::Justification::centredRight);
         g.setColour(a.panel);g.fillRoundedRectangle(plot.toFloat().expanded(1),8);
         if(fullScreen){g.setColour(a.muted);g.drawText("Fullscreen display open / F11 to return",plot,juce::Justification::centred);}
@@ -609,7 +611,7 @@ private:
         g.setColour(a.muted);g.setFont(12.f);
         if(value("clean")>.5f)return;
         if(spectral()) {
-            g.drawText(value("listen")>.5f?"Band audition: steep 48 dB/oct edges / analysis stays on the original input":"Original audio / select a range, then enable Listen band",24,plot.getBottom()+5,670,22,juce::Justification::centredLeft);
+            g.drawText((value("listen")>.5f||proc.previewOwner.load()!=nullptr)?"Band audition: steep 48 dB/oct edges / analysis stays on the original input":"Original audio / select a range, then enable Listen band",24,plot.getBottom()+5,670,22,juce::Justification::centredLeft);
         } else g.drawText(int(value("view"))==1?"X LEFT / Y "+juce::String(value("xySource")>1.5f?"SINE":value("xySource")>.5f?"LEFT":"RIGHT")+" / delay "+juce::String(value("xyDelay"),3)+" ms":"L  mint    R  amber    /    "+juce::String(displayedSettings.seconds*100.,2)+" ms / div",24,plot.getBottom()+7,600,22,juce::Justification::centredLeft);
         g.drawText(juce::String(juce::roundToInt(paintFps))+" fps  /  "+juce::String(juce::roundToInt(updateRate))+" new/s  /  "+(spectral()?juce::String("FFT"):juce::String(juce::roundToInt(sweepRate))+" sweeps/s"),
                    plot.getRight()-310,plot.getBottom()+7,310,22,juce::Justification::centredRight);

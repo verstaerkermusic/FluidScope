@@ -6,7 +6,7 @@
 
 Ein Audio-Oszilloskop von **verstaerker**, entwickelt für eine flüssige Darstellung, stabiles Triggering und einen gut lesbaren Blick in den Klang. Wellenform, Lissajous und Spektralanalyse treffen auf räumliche Zeitverläufe, eigene Farben und eine große Vollbildansicht.
 
-**macOS Apple Silicon + Intel · VST3 + AU + eigenständige App · Version 0.4.11 · GPLv3 oder später**
+**macOS Apple Silicon + Intel · VST3 + AU + eigenständige App · Version 0.4.12 · GPLv3 oder später**
 
 [English](README.en.md) · [Kurzanleitung](KURZANLEITUNG.md) · [GUI-Galerie](GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
 

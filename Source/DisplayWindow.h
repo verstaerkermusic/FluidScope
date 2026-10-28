@@ -6,6 +6,8 @@
 namespace fluid {
 class Presentation : public juce::Component {
     juce::AudioProcessorValueTreeState& state;
+    std::atomic<const void*>& previewOwner;
+    bool lastPreview=false;
     SignalPanel wave,xy;
     SpectrumPanel spectrum,depth,xyDepth;
     juce::ComboBox view;
@@ -24,7 +26,7 @@ class Presentation : public juce::Component {
     void setView(int i){auto* p=state.getParameter("view");p->setValueNotifyingHost(p->convertTo0to1(float(i)));}
 public:
     std::function<void()> exit,frame;
-    Presentation(Capture& c,SpectrumAnalyser& a,juce::AudioProcessorValueTreeState& s,MeterAnalyser& m):state(s),wave(c,s,false),xy(c,s,true),spectrum(a,s),depth(a,s),xyDepth(a,s,&c),meters(m,s) {
+    Presentation(Capture& c,SpectrumAnalyser& a,juce::AudioProcessorValueTreeState& s,MeterAnalyser& m,std::atomic<const void*>& preview):state(s),previewOwner(preview),wave(c,s,false),xy(c,s,true),spectrum(a,s,nullptr,&preview),depth(a,s,nullptr,&preview),xyDepth(a,s,&c,&preview),meters(m,s) {
         for(auto* child:std::initializer_list<juce::Component*>{&wave,&xy,&spectrum,&depth,&xyDepth,&view,&clean,&wireframe,&listen,&xy3D,&close,&meters,&meterToggle})addAndMakeVisible(child);
         view.addItemList({"Oscilloscope","XY / Lissajous","FFT / Spectrum","3D / History","Quad"},1);
         meterAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,"meters",meterToggle);
@@ -52,6 +54,8 @@ public:
         else {wave.setBounds(b);xy.setBounds(b);xyDepth.setBounds(b);spectrum.setBounds(b);depth.setBounds(b);}
     }
     void tick() {
+        bool preview=previewOwner.load()!=nullptr;if(preview!=lastPreview){lastPreview=preview;repaint();}
+        listen.setButtonText(preview?"ALT PREVIEW":value("listen")>.5f?"LISTENING":"Listen band");
         int style=int(value("style"));if(style!=lastStyle){lastStyle=style;auto a=appearance(style,int(value("colourL")),int(value("colourR")));meterToggle.setColour(juce::ToggleButton::textColourId,a.text);meterToggle.setColour(juce::ToggleButton::tickColourId,a.left);view.setColour(juce::ComboBox::backgroundColourId,a.panel);view.setColour(juce::ComboBox::textColourId,a.text);wireframe.setColour(juce::ToggleButton::textColourId,a.text);wireframe.setColour(juce::ToggleButton::tickColourId,a.left);clean.setColour(juce::ToggleButton::textColourId,a.text);clean.setColour(juce::ToggleButton::tickColourId,a.left);xy3D.setColour(juce::ToggleButton::textColourId,a.text);xy3D.setColour(juce::ToggleButton::tickColourId,a.left);listen.setColour(juce::ToggleButton::textColourId,a.text);listen.setColour(juce::ToggleButton::tickColourId,a.right);close.setColour(juce::TextButton::buttonColourId,a.grid);close.setColour(juce::TextButton::textColourOffId,a.text);repaint();}
         int mode=int(value("view"));if(mode!=lastMode||lastXY3D!=value("xy3D")||lastMeters!=(value("meters")>.5f)){lastMode=mode;lastXY3D=value("xy3D");lastMeters=value("meters")>.5f;resized();repaint();}
         if(mode==0||mode==4)wave.refresh();if(mode==1||mode==4){if(value("xy3D")>.5f)xyDepth.tick();else xy.refresh();}if(mode==2||mode==4)spectrum.tick();if(mode==3||mode==4)depth.tick();
@@ -64,7 +68,7 @@ public:
     void paint(juce::Graphics& g)override {
         if(int(value("view"))<2)++nativePaints;
         auto a=appearance(int(value("style")),int(value("colourL")),int(value("colourR")));g.fillAll(a.background);if(value("clean")>.5f)return;g.setColour(a.text);g.setFont(17.f);g.drawText("FluidScope / verstaerker",16,8,208,28,juce::Justification::centredLeft);
-        g.setFont(12.f);g.setColour(a.muted);g.drawText("F11 / Esc: return to controls"+juce::String(value("listen")>.5f?" / BAND LISTENING":""),16,getHeight()-28,getWidth()-32,22,juce::Justification::centredLeft);
+        g.setFont(12.f);g.setColour(a.muted);g.drawText("F11 / Esc: return to controls"+juce::String(previewOwner.load()!=nullptr?" / ALT BAND PREVIEW":value("listen")>.5f?" / BAND LISTENING":""),16,getHeight()-28,getWidth()-32,22,juce::Justification::centredLeft);
     }
 };
 class DisplayWindow : public juce::DocumentWindow {
@@ -72,7 +76,7 @@ class DisplayWindow : public juce::DocumentWindow {
     juce::BorderSize<int> getBorderThickness()override{return {};}
 public:
     Presentation display;
-    DisplayWindow(Capture& c,SpectrumAnalyser& a,juce::AudioProcessorValueTreeState& s,MeterAnalyser& m,juce::Component& owner):DocumentWindow("FluidScope",juce::Colours::black,juce::DocumentWindow::closeButton),display(c,a,s,m) {
+    DisplayWindow(Capture& c,SpectrumAnalyser& a,juce::AudioProcessorValueTreeState& s,MeterAnalyser& m,std::atomic<const void*>& preview,juce::Component& owner):DocumentWindow("FluidScope",juce::Colours::black,juce::DocumentWindow::closeButton),display(c,a,s,m,preview) {
         setUsingNativeTitleBar(false);setTitleBarHeight(0);setContentNonOwned(&display,false);setResizable(false,false);
         const auto& displays=juce::Desktop::getInstance().getDisplays();const auto* monitor=displays.getDisplayForRect(owner.getScreenBounds());
         if(!monitor)monitor=displays.getPrimaryDisplay();

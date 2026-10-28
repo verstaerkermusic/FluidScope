@@ -1,6 +1,6 @@
 # FluidScope – Quick start
 
-**0.4.11 · verstaerker · macOS Apple Silicon + Intel**
+**0.4.12 · verstaerker · macOS Apple Silicon + Intel**
 
 1. Run **Install-FluidScope.command** from the extracted package, choose user or system-wide installation, then restart the DAW. Insert the VST3 or AU on an audio track, or launch the standalone app and choose your input device. Desktop playback requires a suitable loopback input.
 2. Start in **Oscilloscope** with Auto / Left / Rising. Set Window to the time span you want to see. Adjust trigger level, hysteresis and holdoff for a repeating waveform. Gain is display-only.
@@ -24,6 +24,8 @@ Enable **Meters** for L/R Peak/RMS, True Peak and LUFS, including in fullscreen.
 ## Auditioning a band
 
 Select a frequency range, then explicitly enable **Listen band**. This applies steep filters to the audio; selection alone does not. Turn it off, use Clear band or press Escape to return to the original signal after a short transition. The FFT continues to show the original input.
+
+Drag the small centre grip near the bottom of the selected 2D FFT band to sweep it across frequencies. Log mode preserves octave width; Linear mode preserves Hz width. Drag either band edge to resize it. This works in Quad and fullscreen too. When Listen band is enabled, the audition follows the moved band; ordinary dragging never enables audition by itself. Hold **Alt/Option** while holding or dragging the centre grip for momentary band audition. Releasing Alt or the mouse restores the previous manual Listen state; the temporary preview is not saved. Clean mode hides the grips with the other plot overlays.
 
 This isolates frequency ranges, not individual instruments. The enabled listen state is saved in the project and visibly marked LISTENING.
 
