@@ -1,12 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.4.11 — 2026-10-28
 
 - Fix stepped input meters: publish Peak/RMS/True Peak every 5 ms and animate at display refresh with elapsed-time peak release and smooth RMS markers. Keep all LUFS windows, gating and 100-ms update timing unchanged.
-
 - Add a macOS Audio Unit effect alongside VST3 and standalone, targeting Apple Silicon and Intel.
 - Include an English double-click installer with a choice of user or system-wide VST3/AU installation, scoped quarantine removal, previous-version backups and rollback on failure. Refresh the current user's AU registration after installation.
-
 - Rename the waveform display from Stereo to Oscilloscope, keeping its saved view index unchanged.
 - Add an optional input-meter sidebar in all views and fullscreen, independent of Clean mode: L/R sample peaks and peak holds, 400-ms RMS, four-times-oversampled True Peak with a retained maximum, and momentary/short-term/gated integrated LUFS.
 - Add a saved True Peak warning threshold (default -1 dBTP), configurable LUFS colours (green at -14, deep red at -8), manual measurement reset and optional reset on playback start.

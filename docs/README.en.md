@@ -8,7 +8,7 @@ An audio oscilloscope by **verstaerker**, built around fluid motion, stable trig
 
 **macOS Apple Silicon + Intel · VST3 + AU + standalone · 0.4.11 · GPLv3 or later**
 
-[Deutsch](../README.md) · [Quick start](QUICKSTART.en.md) · [Gallery](GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
+[Deutsch](README.de.md) · [Quick start](QUICKSTART.en.md) · [Gallery](GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
 
 ![Quad view: waveform, XY, spectrum and 3D history](images/quad.png)
 
@@ -32,17 +32,19 @@ Select and audition a frequency band. Pick a classic green, amber or monochrome 
 
 **Input meters:** an optional sidebar with L/R Peak/RMS, True Peak with an adjustable retained warning, and momentary/short-term/integrated LUFS. Adjust the gradual green-to-red loudness colours and transport reset in Settings. Available across display modes and fullscreen, independently of Clean. See [metering details](METERING.md).
 
+![Oscilloscope with input peak, RMS, True Peak and LUFS meters](images/meters.png)
+
 ## Install
-
-Download and extract the macOS Universal release. Copy `FluidScope.vst3` into `~/Library/Audio/Plug-Ins/VST3/`, then restart your DAW and rescan if needed. For AU hosts, copy `FluidScope.component` into `~/Library/Audio/Plug-Ins/Components/` and restart the host. The manufacturer is **verstaerker**. To run without a DAW, copy and launch `FluidScope.app`.
-
-Requires macOS 12+ on Apple Silicon or Intel. VST3, AU and standalone are included; no Windows build is included. 3D views require OpenGL 3.2+. Intel binaries were cross-built and regression-tested under Rosetta; native Intel hardware testing is still pending. Downloads are ad-hoc signed, not notarized, so macOS may request additional approval.
-
-## Notes
 
 The macOS package includes **Install-FluidScope.command**. Extract the complete download, quit your DAW and double-click the installer. Choose **User installation** (recommended, no administrator password) or **System-wide installation** (administrator password required). It installs VST3 and AU, verifies signature integrity, backs up previous versions and removes quarantine only from the installed FluidScope plugins. AU registration is refreshed for the current user. Restart the DAW and rescan if needed.
 
 **Authorize-FluidScope.command** is also included for existing installations. It only verifies installed FluidScope VST3/AU signatures and removes their quarantine attributes. Global Gatekeeper settings stay unchanged.
+
+For manual installation, copy `FluidScope.vst3` into `~/Library/Audio/Plug-Ins/VST3/`, then restart your DAW and rescan if needed. For AU hosts, copy `FluidScope.component` into `~/Library/Audio/Plug-Ins/Components/` and restart the host. The manufacturer is **verstaerker**. To run without a DAW, copy and launch `FluidScope.app`.
+
+Requires macOS 12+ on Apple Silicon or Intel. VST3, AU and standalone are included; no Windows build is included. 3D views require OpenGL 3.2+. Intel binaries were cross-built and regression-tested under Rosetta; native Intel hardware testing is still pending. Downloads are ad-hoc signed, not notarized, so macOS may request additional approval.
+
+## Notes
 
 Band audition applies steep filters and its enabled state is saved with the project. With audition off and its short transition complete, audio is unchanged. It isolates frequency ranges, not individual instruments or stems. The standalone app analyses device inputs; desktop playback requires a suitable loopback input.
 

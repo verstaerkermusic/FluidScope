@@ -2,74 +2,56 @@
 
 <img src="assets/FluidScope.png" alt="FluidScope app icon" width="128">
 
-### Mein Traum-Oszilloskop. Wellenformen in Bewegung.
+### The oscilloscope I always wanted. Waveforms in motion.
 
-Ein Audio-Oszilloskop von **verstaerker**, entwickelt für eine flüssige Darstellung, stabiles Triggering und einen gut lesbaren Blick in den Klang. Wellenform, Lissajous und Spektralanalyse treffen auf räumliche Zeitverläufe, eigene Farben und eine große Vollbildansicht.
+An audio oscilloscope by **verstaerker**, built around fluid motion, stable triggering and a readable view into sound. Explore stereo waveforms, XY/Lissajous figures and spectra, then add time as a third dimension.
 
-**macOS Apple Silicon + Intel · VST3 + AU + eigenständige App · Version 0.4.11 · GPLv3 oder später**
+**macOS Apple Silicon + Intel · VST3 + AU + standalone · 0.4.11 · GPLv3 or later**
 
-[English](docs/README.en.md) · [Kurzanleitung](docs/KURZANLEITUNG.md) · [GUI-Galerie](docs/GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
+[Deutsch](docs/README.de.md) · [Quick start](docs/QUICKSTART.en.md) · [Gallery](docs/GALLERY.md) · [Downloads](https://github.com/verstaerkermusic/FluidScope/releases)
 
-![FluidScope: Wellenform, Lissajous, FFT und 3D-Verlauf in der Quad-Ansicht](docs/images/quad.png)
+![Quad view: waveform, XY, spectrum and 3D history](docs/images/quad.png)
 
-## Was mir wichtig war
+## Made to follow the sound
 
-Ich wollte ein Oszilloskop, bei dem man Veränderungen wirklich verfolgen kann: modulierte Wellenformen, Transienten, Phasenbeziehungen und die Bewegung eines Spektrums über die Zeit. Eine Darstellung, die flüssig läuft, gut aussieht und etwas über den Klang verrät.
+I wanted a scope that makes movement easy to follow: modulated waveforms, transients, phase relationships and the way a spectrum changes over time. Something enjoyable to watch and useful to understand.
 
-Daraus ist FluidScope geworden.
+FluidScope brings five views together:
 
-## Fünf Ansichten, ein Signal
+- **Oscilloscope:** two traces, fractional-sample trigger alignment, hysteresis, holdoff, pre-trigger, Freeze, Single and phosphor persistence.
+- **XY / Lissajous:** left against right, delayed left or an internal sine. Add time as a third axis. The sine can follow the left input's envelope.
+- **FFT / Spectrum:** log/linear frequency scales, frequency smoothing, display weighting, peak trace and visual-only gain.
+- **3D / History:** 2–12 seconds of spectral history, unrestricted horizontal and vertical orbit rotation, mouse-wheel zoom and a soft rear fade.
+- **Quad:** waveform, XY, spectrum and 3D history together.
 
-| Ansicht | Was du siehst |
-| --- | --- |
-| **Oscilloscope** | Zwei Wellenformen mit stabilem Trigger, Hysterese, Holdoff und einstellbarem Nachleuchten. |
-| **XY / Lissajous** | Linker Kanal gegen rechten Kanal, verzögerten linken Kanal oder internen Sinus. Optional mit Zeit als dritter Achse. |
-| **FFT / Spectrum** | Logarithmische oder lineare Frequenzachse, wählbare Gewichtung, Glättung und Spitzenkurve. |
-| **3D / History** | Frequenz und Pegel über 2–12 Sekunden. Freie Rundum-Perspektiven und Zoom machen zeitliche Zusammenhänge sichtbar. |
-| **Quad** | Wellenform, XY, FFT und 3D-Verlauf gleichzeitig. |
+Select and audition a frequency band. Pick a classic green, amber or monochrome look, choose a modern palette, or set your own colours, line width and glow. Use full screen when you want the signal to fill the display.
 
-## Kleine Regler, großer Unterschied
+**Wireframe** shows the 3D spectrum as a line mesh instead of a filled surface, including Quad and full screen.
 
-- **Triggering:** steigende/fallende Flanke, Auto/Normal/Free, Pre-Trigger, Freeze und Single. Überlappende Erfassung vermeidet Pausen durch lange Zeitfenster.
-- **Lissajous gestalten:** Y-Delay bis 100 ms; interner Sinus mit Frequenz, Phase und Pegel. „Follow input“ lässt seine Amplitude der Hüllkurve des linken Eingangs folgen.
-- **Lesbare FFT:** getrennte Regler für 2D Release und 3D Decay, Frequenzglättung und visuelle Gewichtung. FFT Gain verändert nur die Anzeige.
-- **Bereiche vorhören:** Frequenzband auswählen und „Listen band“ einschalten. So lässt sich hören, welche Klanganteile dort liegen.
-- **3D erkunden:** Ziehen dreht die Perspektive; Mausrad/Trackpad zoomt von 50 bis 300 %. Der hintere Teil des Verlaufs kann weich ausblenden.
-- **Wireframe:** zeigt die 3D-FFT als Liniennetz statt als gefüllte Fläche, auch in Quad und Vollbild.
-- **Clean Mode:** blendet Raster, Skalen, Achsen und Hinweistexte in allen Ansichten aus; die Regler bleiben bedienbar.
-- **Eigener Look:** klassische Grün- und Amber-Töne, Schwarzweiß und moderne Paletten, freie Farben, Liniendicke und Glow.
-- **Groß anzeigen:** Vollbild auf dem Bildschirm des Plugins, auch über schwebenden DAW-Fenstern.
+**Clean mode** hides grids, scales, axes and plot hints in every view, including Quad and full screen. Controls stay accessible.
 
-![3D-Lissajous mit Zeit als dritter Achse und Envelope-Follower](docs/images/xy3d.png)
+**Input meters:** an optional sidebar with L/R Peak/RMS, True Peak with an adjustable retained warning, and momentary/short-term/integrated LUFS. Adjust the gradual green-to-red loudness colours and transport reset in Settings. Available across display modes and fullscreen, independently of Clean. See [metering details](docs/METERING.md).
 
-## Installation
+![Oscilloscope with input peak, RMS, True Peak and LUFS meters](docs/images/meters.png)
 
-1. Das macOS-Universal-Paket unter [Releases](https://github.com/verstaerkermusic/FluidScope/releases) herunterladen und entpacken.
-2. `FluidScope.vst3` nach `~/Library/Audio/Plug-Ins/VST3/` kopieren. Den Ordner bei Bedarf erstellen.
-3. Die DAW vollständig neu starten; falls nötig Plugins neu scannen. Hersteller: **verstaerker**.
-4. Für AU-Hosts `FluidScope.component` nach `~/Library/Audio/Plug-Ins/Components/` kopieren und den Host neu starten.
-5. Für den Betrieb ohne DAW `FluidScope.app` in einen Ordner deiner Wahl kopieren und starten.
+## Install
 
-Das macOS-Paket enthält **Install-FluidScope.command**. Das vollständige Paket entpacken, die DAW beenden und das Script doppelklicken. Es fragt nach einer Installation für den aktuellen Benutzer (ohne Administratorpasswort) oder für alle Benutzer (mit Administratorpasswort). VST3 und AU werden geprüft und installiert, vorhandene Versionen gesichert und nur die Quarantänevermerke der FluidScope-Plugins entfernt. Die AU-Registrierung wird für den aktuellen Benutzer erneuert. Anschließend die DAW neu starten.
+The macOS package includes **Install-FluidScope.command**. Extract the complete download, quit your DAW and double-click the installer. Choose **User installation** (recommended, no administrator password) or **System-wide installation** (administrator password required). It installs VST3 and AU, verifies signature integrity, backs up previous versions and removes quarantine only from the installed FluidScope plugins. AU registration is refreshed for the current user. Restart the DAW and rescan if needed.
 
-Für vorhandene Installationen liegt außerdem **Authorize-FluidScope.command** bei. Es prüft die Signaturen der installierten FluidScope-VST3-/AU-Dateien und entfernt deren Quarantänevermerke. Die allgemeinen Gatekeeper-Einstellungen bleiben erhalten.
+**Authorize-FluidScope.command** is also included for existing installations. It only verifies installed FluidScope VST3/AU signatures and removes their quarantine attributes. Global Gatekeeper settings stay unchanged.
 
-Benötigt **macOS 12 oder neuer und einen Apple-Silicon- oder Intel-Mac**. Die VST3-Version benötigt einen passenden VST3-Host. Eine AU-Version für kompatible Hosts ist ebenfalls enthalten; Windows-Builds sind nicht enthalten. Die 3D-Ansichten benötigen OpenGL 3.2 oder neuer. Intel wurde hier per Crossbuild und Tests unter Rosetta geprüft; ein nativer Intel-Hardwaretest steht noch aus. Die Downloads sind ad-hoc signiert und nicht notarisiert; macOS kann eine zusätzliche Freigabe verlangen.
+For manual installation, copy `FluidScope.vst3` into `~/Library/Audio/Plug-Ins/VST3/`, then restart your DAW and rescan if needed. For AU hosts, copy `FluidScope.component` into `~/Library/Audio/Plug-Ins/Components/` and restart the host. The manufacturer is **verstaerker**. To run without a DAW, copy and launch `FluidScope.app`.
 
-## Gut zu wissen
+Requires macOS 12+ on Apple Silicon or Intel. VST3, AU and standalone are included; no Windows build is included. 3D views require OpenGL 3.2+. Intel binaries were cross-built and regression-tested under Rosetta; native Intel hardware testing is still pending. Downloads are ad-hoc signed, not notarized, so macOS may request additional approval.
 
-Ohne Band-Vorhören bleibt das Audio nach beendetem Umschalt-Fade unverändert. „Listen band“ schaltet dagegen hörbare Filter ein und wird mit dem Projekt gespeichert. Das Vorhören isoliert einen Frequenzbereich; Instrumente mit überlappenden Frequenzen lassen sich damit nicht vollständig trennen.
+## Notes
 
-Die App analysiert die gewählten Geräte-Eingänge. Für Desktop-Audio wird ein geeigneter Loopback-Eingang benötigt; direkte macOS-Systemaudio-Aufnahme ist nicht eingebaut.
+Band audition applies steep filters and its enabled state is saved with the project. With audition off and its short transition complete, audio is unchanged. It isolates frequency ranges, not individual instruments or stems. The standalone app analyses device inputs; desktop playback requires a suitable loopback input.
 
-FluidScope ist auf flüssige Updates ausgelegt. Die erreichbare Bildrate und Last hängen unter anderem von Abtastrate, Zeitfenster, Fenstergröße, Zoom, Signal und DAW ab. Sehr dichte Lissajous-Figuren und lange 3D-Verläufe bleiben aufwendiger. FFT-Fenster und Glättung bringen eine Reaktionszeit mit sich.
+Frame rate depends on the Mac, host, sample rate, time span, display size, zoom and signal. Dense figures and long histories remain more demanding. FFT analysis windows and smoothing introduce response time.
 
-## Quellcode und Lizenz
+## Source
 
-FluidScope wird unter **GNU GPLv3 oder später** veröffentlicht. Der vollständige Quellcode und das passende JUCE-7.0.10-Snapshot liegen im Repository und im Quellcode-Download des Releases. [Bauanleitung](BUILDING.md) · [Lizenz](LICENSE) · [Hinweise und Herkunft](NOTICE.md).
+Licensed under **GPLv3 or later**. The repository and source archive include the exact JUCE 7.0.10 snapshot used by this release, including its documented macOS snapshot patch. See [build instructions](BUILDING.md), [LICENSE](LICENSE) and [NOTICE](NOTICE.md).
 
-Die ursprünglichen Oscilloscope- und XYScope-Ideen von [FigBug/slPlugins](https://github.com/FigBug/slPlugins) waren der Ausgangspunkt. Danke an Roland Rabien und die JUCE-Entwickler. Die ursprünglichen BSD-Hinweise stehen in [UPSTREAM-LICENSE.md](UPSTREAM-LICENSE.md).
-
-## Rückmeldungen
-
-Bei Problemen bitte macOS-Version, Mac-Modell, DAW, Abtastrate, Ansicht und die betreffenden Reglerwerte angeben. Bei Darstellungsproblemen sind ein Screenshot und die FPS-Anzeige hilfreich. [Issue erstellen](https://github.com/verstaerkermusic/FluidScope/issues).
+Inspired by the Oscilloscope and XYScope concepts in [FigBug/slPlugins](https://github.com/FigBug/slPlugins). Original BSD notices are retained in [UPSTREAM-LICENSE.md](UPSTREAM-LICENSE.md).
